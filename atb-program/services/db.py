@@ -1,0 +1,192 @@
+"""MySQL 저장 (atb-back/lib/aptApi.ts 의 saveAptTrades 포팅).
+
+apartments(단지) upsert → apartment_deals(거래) insert → apt_id 연결.
+모두 INSERT IGNORE 로 중복 무시.
+"""
+from __future__ import annotations
+
+import hashlib
+
+import pymysql
+
+import config
+from services.apt_api import AptTradeItem
+
+
+def _conn():
+    return pymysql.connect(
+        host=config.MYSQL_HOST,
+        port=config.MYSQL_PORT,
+        user=config.MYSQL_USER,
+        password=config.MYSQL_PASSWORD,
+        database=config.MYSQL_DATABASE,
+        charset="utf8mb4",
+        autocommit=False,
+    )
+
+
+def load_sgg_codes(active_only: bool = False) -> list[dict]:
+    """sgg_codes(시군구 마스터) 조회. [{sgg_cd, sido_nm, sgg_nm, is_active}, ...]."""
+    sql = ("SELECT sgg_cd, sido_nm, sgg_nm, is_active FROM sgg_codes "
+           + ("WHERE is_active = 1 " if active_only else "")
+           + "ORDER BY sido_nm, sgg_cd")
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def _to_int(val, default=None):
+    try:
+        return int(str(val).replace(",", "").strip())
+    except (ValueError, TypeError):
+        return default
+
+
+def _parse_item(item: AptTradeItem) -> dict:
+    """API 아이템 → DB row dict (TS parseItem 동일)."""
+    amount = _to_int(item.dealAmount, 0)
+    y = _to_int(item.dealYear, 0)
+    m = _to_int(item.dealMonth, 0)
+    d = _to_int(item.dealDay, 0)
+    deal_date = f"{y:04d}-{m:02d}-{d:02d}"
+
+    sgg_cd = item.sggCd or ""
+    key_src = f"{sgg_cd}_{item.aptNm}_{item.aptDong}_{deal_date}_{item.floor}_{item.excluUseAr}_{amount}"
+    transaction_key = hashlib.md5(key_src.encode("utf-8")).hexdigest()
+
+    return {
+        "transaction_key": transaction_key,
+        "sgg_cd": _to_int(sgg_cd),
+        "umd_nm": item.umdNm,
+        "jibun": str(item.jibun or ""),
+        "apt_nm": item.aptNm,
+        "apt_dong": str(item.aptDong or ""),
+        "build_year": _to_int(item.buildYear),
+        "deal_amount": amount,
+        "deal_date": deal_date,
+        "deal_year": y,
+        "deal_month": m,
+        "deal_day": d,
+        "exclu_use_ar": _to_int(item.excluUseAr) if "." not in str(item.excluUseAr)
+        else float(item.excluUseAr),
+        "floor": _to_int(item.floor),
+        "dealing_gbn": item.dealingGbn or None,
+        "buyer_gbn": item.buyerGbn or None,
+        "sler_gbn": item.slerGbn or None,
+        "land_leasehold_gbn": item.landLeaseholdGbn or "N",
+        "cdeal_type": item.cdealType or None,
+        "cdeal_day": item.cdealDay or None,
+        "estate_agent_sgg_nm": item.estateAgentSggNm or None,
+        "rgst_date": item.rgstDate or None,
+    }
+
+
+def save_apt_trades(items: list[AptTradeItem]) -> int:
+    """거래 목록 저장. 신규 저장된 거래 건수 반환."""
+    if not items:
+        return 0
+
+    rows = [_parse_item(it) for it in items]
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            # 1. 배치 내 unique 단지만 apartments upsert
+            seen: set[str] = set()
+            for r in rows:
+                key = f"{r['sgg_cd']}_{r['apt_nm']}_{r['jibun']}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                cur.execute(
+                    "INSERT IGNORE INTO apartments (sgg_cd, umd_nm, jibun, apt_nm, build_year) "
+                    "VALUES (%s, %s, %s, %s, %s)",
+                    (r["sgg_cd"], r["umd_nm"], r["jibun"], r["apt_nm"], r["build_year"]),
+                )
+
+            # 2. apartment_deals INSERT IGNORE (배치)
+            columns = list(rows[0].keys())
+            placeholders = "(" + ",".join(["%s"] * len(columns)) + ")"
+            all_ph = ",".join([placeholders] * len(rows))
+            values: list = []
+            for r in rows:
+                values.extend(r[c] for c in columns)
+            cur.execute(
+                f"INSERT IGNORE INTO apartment_deals ({','.join(columns)}) VALUES {all_ph}",
+                values,
+            )
+            saved = cur.rowcount
+
+            # 3. apt_id 연결 (NULL 인 것만)
+            cur.execute(
+                "UPDATE apartment_deals d "
+                "JOIN apartments a "
+                "  ON a.sgg_cd = d.sgg_cd AND a.apt_nm = d.apt_nm "
+                " AND COALESCE(a.jibun, '') = COALESCE(d.jibun, '') "
+                "SET d.apt_id = a.id WHERE d.apt_id IS NULL"
+            )
+        conn.commit()
+        return saved
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+# ─── 이미지 검수 상태 ──────────────────────────────────────────────────────────
+def get_pending_image_apartments(limit: int | None = None) -> list[dict]:
+    """이미지 미검수(image_status=0) 단지 목록.
+
+    신규 건물만 검수하기 위함. 기존 건물은 이미 status 1(있음)/2(없음) 이라
+    여기 안 잡히므로, 거래가 아무리 많아도 '신규 건물 수'만큼만 검수한다.
+    """
+    sql = ("SELECT id, apt_nm, umd_nm, jibun FROM apartments "
+           "WHERE image_status = 0 ORDER BY id")
+    params: tuple = ()
+    if limit is not None:
+        sql += " LIMIT %s"
+        params = (limit,)
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql, params)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def set_apartment_image(apt_id: int, image_url: str, source: str = "naver") -> None:
+    """검수 통과 이미지 1장 저장 → image_status=1 (검수완료·이미지있음)."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE apartments "
+                "SET thumbnail_url = %s, thumbnail_source = %s, "
+                "    image_status = 1, image_checked_at = NOW() "
+                "WHERE id = %s",
+                (image_url, source, apt_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_apartment_no_image(apt_id: int) -> None:
+    """검수했으나 통과 이미지 없음 → image_status=2 (다시 검수하지 않음)."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE apartments "
+                "SET image_status = 2, image_checked_at = NOW() "
+                "WHERE id = %s",
+                (apt_id,),
+            )
+        conn.commit()
+    finally:
+        conn.close()

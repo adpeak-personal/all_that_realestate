@@ -1,0 +1,17 @@
+# 실거래가 조회 / 이미지 검색
+requests
+pillow
+PyMySQL
+
+# 이미지 분류 (Places365 ResNet18) — CPU 빌드 권장
+# 설치: pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+
+# 글씨(텍스트) 검출용 OCR 래퍼
+# ※ 시스템에 Tesseract 실행파일도 필요: winget install -e --id UB-Mannheim.TesseractOCR
+#   한국어 데이터(kor)는 models/tessdata/ 에 포함됨
+pytesseract
+
+# 2번 방향 — Gemini 이미지 링크 검색 (Google Search grounding)
+google-genai

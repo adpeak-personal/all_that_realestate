@@ -181,19 +181,50 @@ export interface WebImageResult {
     pageUrl: string;
     imageUrl: string;
     domain: string;
+    /** og:image:width 값. 메타태그가 없으면 null (= 너비 정보 없음) */
+    width: number | null;
 }
 
-/** og:image 메타태그 추출 */
-function extractOgImage(html: string): string | null {
+/** 지정한 og 메타 property 의 content 추출 (속성 순서 무관) */
+function extractMetaContent(html: string, property: string): string | null {
+    const esc = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const patterns = [
-        /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
-        /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i,
+        new RegExp(`<meta[^>]+property=["']${esc}["'][^>]+content=["']([^"']+)["']`, 'i'),
+        new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']${esc}["']`, 'i'),
     ];
     for (const re of patterns) {
         const m = html.match(re);
         if (m?.[1]) return m[1];
     }
     return null;
+}
+
+/** og:image 메타태그 추출 */
+function extractOgImage(html: string): string | null {
+    return extractMetaContent(html, 'og:image');
+}
+
+/** og:image:width 메타태그 추출 (없으면 null) */
+function extractOgImageWidth(html: string): number | null {
+    const raw = extractMetaContent(html, 'og:image:width');
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : null;
+}
+
+/** namu.wiki / i.namu.wiki 호스트 여부 */
+function isNamuHost(url: string): boolean {
+    try {
+        const host = new URL(url).hostname.toLowerCase();
+        return host === 'namu.wiki' || host === 'i.namu.wiki';
+    } catch {
+        return false;
+    }
+}
+
+/** 확장자가 svg 인지 (쿼리스트링/프래그먼트 무시) */
+function isSvg(url: string): boolean {
+    return /\.svg(?:[?#]|$)/i.test(url);
 }
 
 /**
@@ -208,7 +239,8 @@ export async function searchAptImagesByWeb(
     const clientSecret = process.env.NAVER_CLIENT_SECRET;
     if (!clientId || !clientSecret) throw new Error('NAVER credentials not set');
 
-    const SEARCH_DOMAINS = ['kbland.kr', 'land.naver.com', 'place.map.kakao.com', 'namu.wiki'];
+    // namu.wiki / i.namu.wiki 에서만 가져온다
+    const SEARCH_DOMAINS = ['namu.wiki'];
 
     const results: WebImageResult[] = [];
 
@@ -254,7 +286,19 @@ export async function searchAptImagesByWeb(
                 if (!htmlRes.ok) continue;
                 const html = await htmlRes.text();
                 const imageUrl = extractOgImage(html);
-                if (imageUrl) results.push({ pageUrl, imageUrl, domain });
+                if (!imageUrl) continue;
+
+                // namu.wiki / i.namu.wiki 호스트만 허용
+                if (!isNamuHost(imageUrl)) continue;
+
+                // 확장자가 svg 면 패스
+                if (isSvg(imageUrl)) continue;
+
+                // 가로 사이즈 확인 — 있으면 500px 이하 패스, 없으면 null(없음)으로 표시
+                const width = extractOgImageWidth(html);
+                if (width !== null && width <= 500) continue;
+
+                results.push({ pageUrl, imageUrl, domain, width });
             } catch {
                 // 타임아웃 또는 접속 불가 — 스킵
             }

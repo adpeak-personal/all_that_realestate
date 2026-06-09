@@ -1,6 +1,6 @@
 -- ============================================================
 -- 001_init.sql
--- 실행 순서: sgg_codes → apartments → apartment_images → apartment_deals
+-- 실행 순서: sgg_codes → apartments → apartment_deals
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS `atb_db` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -36,7 +36,10 @@ CREATE TABLE `apartments` (
   `lat`              DECIMAL(10,7) DEFAULT NULL COMMENT '위도 (WGS84)',
   `lng`              DECIMAL(10,7) DEFAULT NULL COMMENT '경도 (WGS84)',
   `thumbnail_url`    VARCHAR(500)  DEFAULT NULL COMMENT '대표 이미지 URL',
+  `thumbnail_source` VARCHAR(30)   DEFAULT NULL COMMENT '대표 이미지 출처 (naver / google / manual)',
   `apt_status`       VARCHAR(20)   DEFAULT 'COMPLETED' COMMENT '단지 상태 (COMPLETED: 입주완공, PRE_SALE: 분양중)',
+  `image_status`     TINYINT(1)    NOT NULL DEFAULT 0 COMMENT '이미지 검수 상태 (0: 미검수, 1: 검수완료·이미지있음, 2: 검수완료·이미지없음)',
+  `image_checked_at` TIMESTAMP     NULL DEFAULT NULL COMMENT '이미지 검수 시각',
   `created_at`       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,
   `updated_at`       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 
@@ -44,30 +47,13 @@ CREATE TABLE `apartments` (
   UNIQUE KEY `uq_apt`     (`sgg_cd`, `apt_nm`, `jibun`),
   KEY `idx_sgg_apt`       (`sgg_cd`, `apt_nm`(50)),
   KEY `idx_apt_nm`        (`apt_nm`(50)),
-  KEY `idx_coords`        (`lat`, `lng`)
+  KEY `idx_coords`        (`lat`, `lng`),
+  KEY `idx_image_status`  (`image_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='아파트 단지 마스터';
 
 
--- 2. 아파트 이미지 ──────────────────────────────────────────────
-CREATE TABLE `apartment_images` (
-  `id`          BIGINT       NOT NULL AUTO_INCREMENT,
-  `apt_id`      BIGINT       NOT NULL COMMENT 'apartments.id FK',
-  `image_url`   VARCHAR(500) NOT NULL COMMENT '이미지 URL',
-  `source`      VARCHAR(30)  DEFAULT NULL COMMENT '출처 (google / naver / kakao / manual)',
-  `is_primary`  TINYINT(1)   DEFAULT 0   COMMENT '대표 이미지 여부',
-  `sort_order`  SMALLINT     DEFAULT 0   COMMENT '노출 순서',
-  `created_at`  TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
-
-  PRIMARY KEY (`id`),
-  KEY `idx_apt_id` (`apt_id`),
-  CONSTRAINT `fk_img_apt` FOREIGN KEY (`apt_id`)
-    REFERENCES `apartments` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-  COMMENT='아파트 이미지';
-
-
--- 3. 아파트 매매 실거래가 ───────────────────────────────────────
+-- 2. 아파트 매매 실거래가 ───────────────────────────────────────
 CREATE TABLE `apartment_deals` (
   `id`               BIGINT        NOT NULL AUTO_INCREMENT,
   `transaction_key`  VARCHAR(64)   NOT NULL COMMENT 'MD5(sgg_cd+apt_nm+apt_dong+deal_date+floor+exclu_use_ar+deal_amount)',

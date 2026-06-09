@@ -1,43 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-
-interface AptTradeItem {
-  aptNm: string;
-  aptDong: string | number;
-  umdNm: string;
-  excluUseAr: number;
-  floor: number;
-  dealAmount: string;
-  dealYear: number;
-  dealMonth: number;
-  dealDay: number;
-  buildYear: number;
-  dealingGbn: string;
-  buyerGbn: string;
-  slerGbn: string;
-}
-
-interface ApiResult {
-  items: AptTradeItem[];
-  totalCount: number;
-  pageNo: number;
-  numOfRows: number;
-}
-
-interface NaverImage {
-  pageUrl: string;
-  imageUrl: string;
-  domain: string;
-}
-
-interface ImageModal {
-  aptNm: string;
-  query: string;
-  images: NaverImage[];
-  loading: boolean;
-  error: string | null;
-}
+import { useAptTrades, useNaverImages } from '../../../service/main/queries';
+import { useSyncAptTrades } from '../../../service/main/mutation';
+import type { AptTradeItem, AptTradesParams } from '../../../service/main/type';
 
 const SGG_OPTIONS = [
   { code: '11680', name: '서울 강남구' },
@@ -68,67 +34,37 @@ function currentYearMonth(): string {
 export default function AptTradePage() {
   const [lawdCd, setLawdCd] = useState('11680');
   const [dealYmd, setDealYmd] = useState(currentYearMonth());
-  const [result, setResult] = useState<ApiResult | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [syncing, setSyncing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
-  const [modal, setModal] = useState<ImageModal | null>(null);
+  // 조회 버튼을 눌렀을 때 확정되는 검색 파라미터 (null 이면 아직 조회 전)
+  const [params, setParams] = useState<AptTradesParams | null>(null);
+  // 이미지 모달 대상 (null 이면 닫힘)
+  const [modal, setModal] = useState<{ aptNm: string; query: string } | null>(null);
 
-  async function fetchData() {
-    setLoading(true);
-    setError(null);
-    setSyncMsg(null);
-    setResult(null);
-    try {
-      const res = await fetch(
-        `/api/apt/trades?lawdCd=${lawdCd}&dealYmd=${dealYmd}&numOfRows=100`,
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '조회 실패');
-      setResult(json);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setLoading(false);
-    }
+  const tradesQuery = useAptTrades(params);
+  const syncMutation = useSyncAptTrades();
+  const imagesQuery = useNaverImages(modal?.query ?? null);
+
+  const result = tradesQuery.data ?? null;
+  const loading = tradesQuery.isFetching;
+  const syncing = syncMutation.isPending;
+  const error =
+    tradesQuery.error?.message ?? syncMutation.error?.message ?? null;
+  const syncMsg = syncMutation.data
+    ? `저장 완료 — ${syncMutation.data.saved}건 신규 저장`
+    : null;
+
+  function fetchData() {
+    syncMutation.reset();
+    setParams({ lawdCd, dealYmd, numOfRows: 100 });
   }
 
-  async function syncToDB() {
-    setSyncing(true);
-    setSyncMsg(null);
-    try {
-      const res = await fetch(
-        `/api/apt/sync?lawdCd=${lawdCd}&dealYmd=${dealYmd}`,
-        { method: 'POST' },
-      );
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '저장 실패');
-      setSyncMsg(`저장 완료 — ${json.saved}건 신규 저장`);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setSyncing(false);
-    }
+  function syncToDB() {
+    syncMutation.mutate({ lawdCd, dealYmd });
   }
 
-  async function openImages(item: AptTradeItem) {
+  function openImages(item: AptTradeItem) {
     const q = `${item.aptNm} ${item.umdNm} 아파트`;
-    setModal({ aptNm: item.aptNm, query: q, images: [], loading: true, error: null });
-
-    try {
-      const res = await fetch(`/api/naver/images?q=${encodeURIComponent(q)}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error ?? '이미지 검색 실패');
-      setModal(prev => prev && ({
-        ...prev,
-        images: json.items ?? [],
-        loading: false,
-      }));
-    } catch (e) {
-      setModal(prev => prev && ({ ...prev, loading: false, error: String(e) }));
-    }
+    setModal({ aptNm: item.aptNm, query: q });
   }
 
   const sggName = SGG_OPTIONS.find(o => o.code === lawdCd)?.name ?? lawdCd;
@@ -310,26 +246,26 @@ export default function AptTradePage() {
 
             {/* Modal body */}
             <div className="p-6">
-              {modal.loading && (
+              {imagesQuery.isFetching && (
                 <div className="text-center py-12 text-slate-400">
                   <div className="w-8 h-8 border-2 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-3" />
                   <p className="text-sm">이미지 검색 중...</p>
                 </div>
               )}
 
-              {modal.error && (
+              {imagesQuery.error && (
                 <div className="text-center py-10 text-red-500 text-sm">
-                  {modal.error}
+                  {imagesQuery.error.message}
                 </div>
               )}
 
-              {!modal.loading && !modal.error && modal.images.length === 0 && (
+              {!imagesQuery.isFetching && !imagesQuery.error && (imagesQuery.data?.items.length ?? 0) === 0 && (
                 <p className="text-center py-10 text-slate-400 text-sm">검색 결과가 없습니다</p>
               )}
 
-              {!modal.loading && modal.images.length > 0 && (
+              {!imagesQuery.isFetching && (imagesQuery.data?.items.length ?? 0) > 0 && (
                 <div className="grid grid-cols-5 gap-3">
-                  {modal.images.map((img, i) => (
+                  {imagesQuery.data!.items.map((img, i) => (
                     <a
                       key={i}
                       href={img.pageUrl}
