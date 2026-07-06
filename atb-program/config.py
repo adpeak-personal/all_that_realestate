@@ -49,7 +49,6 @@ DATA_AUTH_KEY = env("DATA_AUTH_KEY")
 NAVER_CLIENT_ID = env("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = env("NAVER_CLIENT_SECRET")
 GOOGLE_PLACES_API_KEY = env("GOOGLE_PLACES_API_KEY")
-GEMINI_API_KEY = env("GEMINI_API_KEY")
 
 # ─── MySQL ────────────────────────────────────────────────────────────────────
 MYSQL_HOST = env("MYSQL_HOST", "localhost")
