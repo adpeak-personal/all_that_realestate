@@ -1,7 +1,7 @@
 """환경설정 로드 및 공용 상수/헬퍼.
 
-API 키 등의 비밀값은 atb-back/.env 를 단일 소스로 재사용한다.
-(없으면 OS 환경변수로 폴백)
+atb-program 은 독립 실행된다. 비밀값은 atb-program/.env 가 단일 소스이며,
+OS 환경변수로 개별 항목을 덮어쓸 수 있다. (템플릿: .env.example)
 """
 from __future__ import annotations
 
@@ -10,12 +10,8 @@ import datetime
 from pathlib import Path
 
 # ─── .env 로드 ────────────────────────────────────────────────────────────────
-# atb-program/ 폴더 안의 .env 를 사용 (없으면 atb-back/.env 로 폴백)
 _PROGRAM_DIR = Path(__file__).resolve().parent
-_ENV_CANDIDATES = [
-    _PROGRAM_DIR / ".env",                       # atb-program/.env (우선)
-    _PROGRAM_DIR.parent / "atb-back" / ".env",   # 폴백
-]
+ENV_PATH = _PROGRAM_DIR / ".env"
 
 
 def _load_env(path: Path) -> dict[str, str]:
@@ -33,10 +29,7 @@ def _load_env(path: Path) -> dict[str, str]:
     return data
 
 
-# 앞쪽(atb-program/.env)을 우선, 빈 값은 뒤쪽으로 보충
-_ENV: dict[str, str] = {}
-for _path in reversed(_ENV_CANDIDATES):
-    _ENV.update(_load_env(_path))
+_ENV: dict[str, str] = _load_env(ENV_PATH)
 
 
 def env(key: str, default: str = "") -> str:
@@ -48,7 +41,6 @@ def env(key: str, default: str = "") -> str:
 DATA_AUTH_KEY = env("DATA_AUTH_KEY")
 NAVER_CLIENT_ID = env("NAVER_CLIENT_ID")
 NAVER_CLIENT_SECRET = env("NAVER_CLIENT_SECRET")
-GOOGLE_PLACES_API_KEY = env("GOOGLE_PLACES_API_KEY")
 
 # ─── MySQL ────────────────────────────────────────────────────────────────────
 MYSQL_HOST = env("MYSQL_HOST", "localhost")

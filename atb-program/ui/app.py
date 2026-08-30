@@ -9,7 +9,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 
 import config
-from services import apt_api, db, image_pipeline
+from services import apt_api, db, image_pipeline, kapt_sync, apt_match_run
 from services.apt_api import AptTradeItem
 from ui.image_window import ImageWindow
 from ui.sgg_panel import SggPanel
@@ -69,6 +69,9 @@ class App(tk.Tk):
         style.configure("Save.TButton", font=("맑은 고딕", 10, "bold"),
                         foreground="#ffffff", background="#059669", padding=(16, 6))
         style.map("Save.TButton", background=[("active", "#047857")])
+        style.configure("Match.TButton", font=("맑은 고딕", 10, "bold"),
+                        foreground="#ffffff", background="#0891b2", padding=(16, 6))
+        style.map("Match.TButton", background=[("active", "#0e7490")])
 
     # ─── 헤더 ─────────────────────────────────────────────────────────────────
     def _build_header(self):
@@ -101,9 +104,12 @@ class App(tk.Tk):
         self.save_btn = ttk.Button(inner, text="선택 지역 DB에 저장", style="Save.TButton",
                                    command=self.sync_to_db)
         self.save_btn.grid(row=1, column=2, padx=(0, 8), pady=(4, 0))
+        self.kapt_btn = ttk.Button(inner, text="선택 지역 K-apt 매칭", style="Match.TButton",
+                                   command=self.sync_kapt)
+        self.kapt_btn.grid(row=1, column=3, padx=(0, 8), pady=(4, 0))
         self.image_btn = ttk.Button(inner, text="신규 단지 이미지 검수·저장",
                                     style="Accent.TButton", command=self.sync_images)
-        self.image_btn.grid(row=1, column=3, pady=(4, 0))
+        self.image_btn.grid(row=1, column=4, pady=(4, 0))
 
     # ─── 상태줄 ───────────────────────────────────────────────────────────────
     def _build_status(self):
@@ -196,6 +202,7 @@ class App(tk.Tk):
         state = "disabled" if busy else "normal"
         self.fetch_btn.config(state=state)
         self.save_btn.config(state=state)
+        self.kapt_btn.config(state=state)
         self.image_btn.config(state=state)
 
     # ─── 조회 (미리보기) ──────────────────────────────────────────────────────
@@ -323,6 +330,11 @@ class App(tk.Tk):
                     page += 1
             except Exception as e:  # noqa: BLE001
                 errors.append(f"{name}: {e}")
+        # 저장된 지역의 전용면적 파생 갱신 (apartments.exclu_areas)
+        try:
+            db.refresh_exclu_areas(codes)
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"전용면적 갱신: {e}")
         self.after(0, lambda: self._save_done(total_saved, total_fetched, len(codes), errors))
 
     def _save_done(self, saved: int, fetched: int, n_regions: int, errors: list[str]):
@@ -386,6 +398,72 @@ class App(tk.Tk):
         self.image_btn.config(text="신규 단지 이미지 검수·저장")
         self.status_var.set(f"이미지 검수 실패: {msg}")
         self.status_lbl.config(fg="#dc2626")
+
+    # ─── 선택 지역 K-apt 매칭 ─────────────────────────────────────────────────
+    #   run_kapt.py 와 동일: 시군구별 K-apt 마스터 동기화 → 실거래 단지 매칭.
+    #   계약년월과 무관하므로 지역 선택만 검증한다.
+    def sync_kapt(self):
+        if self._busy:
+            return
+        if not self.sgg_panel:
+            messagebox.showwarning("잠시만요", "지역 목록을 아직 불러오는 중입니다.")
+            return
+        codes = self.sgg_panel.get_selected_codes()
+        if not codes:
+            messagebox.showwarning("지역 선택", "최소 한 개 지역을 선택하세요.")
+            return
+        if not messagebox.askyesno(
+            "K-apt 매칭",
+            f"선택한 {len(codes)}개 지역의 K-apt 단지정보를 동기화하고, 저장된 "
+            f"실거래 단지와 이름·지번으로 매칭합니다.\n(먼저 'DB에 저장'으로 실거래를 "
+            f"넣어둬야 매칭 대상이 생깁니다.)\n\n지역당 단지 수백 건을 조회해 시간이 "
+            f"걸릴 수 있어요. 계속할까요?",
+        ):
+            return
+        self._set_busy(True)
+        self.kapt_btn.config(text="매칭중...")
+        self.status_lbl.config(fg="#64748b")
+        threading.Thread(target=self._kapt_worker, args=(codes,), daemon=True).start()
+
+    def _kapt_worker(self, codes: list[str]):
+        agg = {"confirmed": 0, "matched": 0, "ambiguous": 0,
+               "conflict": 0, "unmatched": 0, "synced": 0, "skipped": 0}
+        errors: list[str] = []
+        n = len(codes)
+        for i, code in enumerate(codes):
+            name = self._name_map.get(int(code), code)
+
+            def prog(done, total, kn, i=i, name=name):
+                self.after(0, lambda: self.status_var.set(
+                    f"K-apt 동기화 {i + 1}/{n}  [{name}]  {done}/{total}  {kn[:16]}"))
+            try:
+                st = kapt_sync.sync_sigungu(str(code), on_progress=prog)
+                agg["synced"] += st.get("saved", 0)
+                agg["skipped"] += st.get("skipped", 0)
+                self.after(0, lambda i=i, name=name: self.status_var.set(
+                    f"매칭 중 {i + 1}/{n}  [{name}] ..."))
+                m = apt_match_run.run_matching(int(code))
+                for k in ("confirmed", "matched", "ambiguous", "conflict", "unmatched"):
+                    agg[k] += m.get(k, 0)
+            except Exception as e:  # noqa: BLE001 — 지역별 실패는 모아서 보고
+                errors.append(f"{name}: {e}")
+        self.after(0, lambda: self._kapt_done(agg, len(codes), errors))
+
+    def _kapt_done(self, agg: dict, n_regions: int, errors: list[str]):
+        self._set_busy(False)
+        self.kapt_btn.config(text="선택 지역 K-apt 매칭")
+        auto = agg["confirmed"] + agg["matched"]
+        review = agg["ambiguous"] + agg["conflict"]
+        base = (f"K-apt 매칭 완료 — 마스터 신규·갱신 {agg['synced']:,}/건너뜀 "
+                f"{agg['skipped']:,} · 자동확정 {auto:,} (확정 {agg['confirmed']:,}/"
+                f"단일 {agg['matched']:,}) · 수동확인 {review:,} · 미매칭 {agg['unmatched']:,}")
+        if errors:
+            self.status_var.set(f"{base}  (지역 {len(errors)}개 오류)")
+            self.status_lbl.config(fg="#dc2626")
+            messagebox.showwarning("일부 지역 실패", "\n".join(errors[:10]))
+        else:
+            self.status_var.set(base)
+            self.status_lbl.config(fg="#059669")
 
 
 def run():

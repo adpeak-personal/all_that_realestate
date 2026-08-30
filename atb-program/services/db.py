@@ -6,6 +6,7 @@ apartments(단지) upsert → apartment_deals(거래) insert → apt_id 연결.
 from __future__ import annotations
 
 import hashlib
+import json
 
 import pymysql
 
@@ -137,6 +138,45 @@ def save_apt_trades(items: list[AptTradeItem]) -> int:
         conn.close()
 
 
+# ─── 전용면적 파생 (apartment_deals → apartments.exclu_areas) ──────────────────
+def refresh_exclu_areas(sgg_cds: list | None = None) -> int:
+    """apartments.exclu_areas 를 그 단지 거래들의 전용면적 종류(JSON 배열)로 갱신.
+
+    apt_id 로 연결된 거래에서 distinct 전용면적을 모은다. sgg_cds 지정 시 해당
+    시군구 단지만 갱신(저장 직후 호출용). 갱신된 단지 수 반환.
+    """
+    where = "WHERE d.apt_id IS NOT NULL"
+    params: tuple = ()
+    if sgg_cds:
+        ph = ",".join(["%s"] * len(sgg_cds))
+        where += f" AND d.sgg_cd IN ({ph})"
+        params = tuple(int(x) for x in sgg_cds)
+
+    sql = f"""
+        UPDATE apartments a
+        JOIN (
+          SELECT apt_id, JSON_ARRAYAGG(ar) AS areas
+          FROM (
+            SELECT DISTINCT d.apt_id, d.exclu_use_ar AS ar
+            FROM apartment_deals d
+            {where}
+            ORDER BY d.apt_id, d.exclu_use_ar
+          ) t
+          GROUP BY apt_id
+        ) s ON s.apt_id = a.id
+        SET a.exclu_areas = s.areas
+    """
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(sql, params)
+            affected = cur.rowcount
+        conn.commit()
+        return affected
+    finally:
+        conn.close()
+
+
 # ─── 이미지 검수 상태 ──────────────────────────────────────────────────────────
 def get_pending_image_apartments(limit: int | None = None) -> list[dict]:
     """이미지 미검수(image_status=0) 단지 목록.
@@ -186,6 +226,105 @@ def mark_apartment_no_image(apt_id: int) -> None:
                 "SET image_status = 2, image_checked_at = NOW() "
                 "WHERE id = %s",
                 (apt_id,),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+# ─── K-apt 단지 마스터 (kapt_complexes) ────────────────────────────────────────
+_KAPT_COLUMNS = [
+    "kapt_code", "kapt_name", "sgg_cd", "sido_nm", "sgg_nm", "umd_nm", "bjd_code",
+    "addr_jibun", "addr_road", "jibun", "total_households", "dong_cnt", "top_floor",
+    "use_apr_date", "heat_type", "hall_type", "sale_type", "builder", "total_area",
+    "parking_total", "cctv_cnt", "raw",
+]
+
+
+def upsert_kapt_complexes(rows: list[dict]) -> int:
+    """kapt_complexes 배치 upsert (INSERT ... ON DUPLICATE KEY UPDATE). 처리 행수 반환."""
+    if not rows:
+        return 0
+
+    cols = _KAPT_COLUMNS
+    # synced_at 을 insert/update 양쪽 모두 NOW() 로 기록 — '최근 동기화 건너뛰기'가
+    # 신규 insert 에도 동작하도록 (update 때만 기록하면 새 단지가 늘 NULL 이 됨).
+    placeholders = "(" + ",".join(["%s"] * len(cols)) + ", NOW())"
+    updates = ",".join(f"{c}=VALUES({c})" for c in cols if c != "kapt_code")
+    sql = (f"INSERT INTO kapt_complexes ({','.join(cols)}, synced_at) VALUES {placeholders} "
+           f"ON DUPLICATE KEY UPDATE {updates}, synced_at=NOW()")
+
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            for r in rows:
+                vals = [json.dumps(r.get(c), ensure_ascii=False) if c == "raw" else r.get(c)
+                        for c in cols]
+                cur.execute(sql, vals)
+        conn.commit()
+        return len(rows)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_recent_kapt_codes(within_days: int) -> set:
+    """최근 within_days 일 내 동기화된 kapt_code 집합 (재동기화 건너뛰기용)."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT kapt_code FROM kapt_complexes "
+                "WHERE synced_at >= NOW() - INTERVAL %s DAY", (within_days,))
+            return {r[0] for r in cur.fetchall()}
+    finally:
+        conn.close()
+
+
+def get_kapt_master(sgg_cd: int) -> list[dict]:
+    """매칭용 마스터: 시군구의 K-apt 단지 [{kapt_code, kapt_name, umd_nm, jibun}, ...]."""
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(
+                "SELECT kapt_code, kapt_name, umd_nm, jibun FROM kapt_complexes "
+                "WHERE sgg_cd = %s", (sgg_cd,))
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+# ─── 매칭 결과 반영 (apartments) ───────────────────────────────────────────────
+def get_unmatched_apartments(sgg_cd: int | None = None) -> list[dict]:
+    """미매칭(match_status=0) 단지 [{id, apt_nm, umd_nm, jibun}, ...]."""
+    sql = ("SELECT id, apt_nm, umd_nm, jibun FROM apartments WHERE match_status = 0")
+    params: tuple = ()
+    if sgg_cd is not None:
+        sql += " AND sgg_cd = %s"
+        params = (sgg_cd,)
+    sql += " ORDER BY id"
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql, params)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def update_apartment_match(apt_id: int, kapt_code: str | None,
+                           status_code: int, method: str) -> None:
+    """매칭 결과 저장. kapt_code 는 자동확정(confirmed/matched)일 때만 채운다."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE apartments "
+                "SET kapt_code = %s, match_status = %s, match_method = %s, matched_at = NOW() "
+                "WHERE id = %s",
+                (kapt_code, status_code, method or None, apt_id),
             )
         conn.commit()
     finally:

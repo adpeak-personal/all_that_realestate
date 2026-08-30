@@ -64,7 +64,7 @@ def fetch_apt_trades(
 ) -> AptTradeResult:
     """실거래가 조회. lawd_cd=지역코드5자리, deal_ymd=YYYYMM."""
     if not config.DATA_AUTH_KEY:
-        raise AptApiError("DATA_AUTH_KEY 가 설정되지 않았습니다 (atb-back/.env 확인).")
+        raise AptApiError(f"DATA_AUTH_KEY 가 설정되지 않았습니다 ({config.ENV_PATH} 확인).")
 
     # serviceKey 는 이미 인코딩된 값이라 직접 URL 에 붙인다 (TS 구현과 동일)
     other = {
