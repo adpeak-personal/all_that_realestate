@@ -119,6 +119,11 @@ def sync_sigungu(sgg_cd: str, with_detail: bool = True,
             continue
         try:
             rows.append(fetch_complex_record(it, with_detail=with_detail))
+        except kapt_api.KaptQuotaExceeded:
+            # 한도 초과는 재시도해도 소용없다. 여기까지 받은 건 저장하고 중단.
+            if rows:
+                db.upsert_kapt_complexes(rows)
+            raise
         except kapt_api.KaptApiError:
             errors += 1
         if on_progress:

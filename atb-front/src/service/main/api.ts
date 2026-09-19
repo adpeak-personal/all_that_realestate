@@ -1,39 +1,53 @@
-// 백엔드 fetch 호출 (raw). React Query 훅은 queries.ts / mutation.ts 참고
+// 백엔드 fetch 호출 (raw). React Query 훅은 queries.ts 참고.
+// next.config.ts 의 rewrites 로 /api/* → http://localhost:4000/api/* 프록시된다.
 import type {
-  AptTradesParams,
-  AptTradesResult,
-  NaverImagesResult,
-  SyncParams,
-  SyncResult,
+  DealListParams,
+  DealListResult,
+  RecentDealsResult,
+  RegionStatsResult,
+  SggResult,
 } from './type';
 
 async function parse<T>(res: Response, fallbackMsg: string): Promise<T> {
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error ?? fallbackMsg);
+  const json = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(json?.error ?? fallbackMsg);
   return json as T;
 }
 
-/** 아파트 실거래가 조회 */
-export async function getAptTrades(params: AptTradesParams): Promise<AptTradesResult> {
-  const { lawdCd, dealYmd, numOfRows = 100 } = params;
-  const res = await fetch(
-    `/api/apt/trades?lawdCd=${lawdCd}&dealYmd=${dealYmd}&numOfRows=${numOfRows}`,
-  );
-  return parse<AptTradesResult>(res, '조회 실패');
+/** 시군구 코드 목록 */
+export async function getSggCodes(): Promise<SggResult> {
+  const res = await fetch('/api/sgg');
+  return parse<SggResult>(res, '시군구 목록 조회 실패');
 }
 
-/** 실거래가 DB 저장 */
-export async function syncAptTrades(params: SyncParams): Promise<SyncResult> {
-  const { lawdCd, dealYmd } = params;
-  const res = await fetch(
-    `/api/apt/sync?lawdCd=${lawdCd}&dealYmd=${dealYmd}`,
-    { method: 'POST' },
-  );
-  return parse<SyncResult>(res, '저장 실패');
+/** 시도별 월간 통계. ym 생략 시 서버가 최신 수집월을 쓴다. */
+export async function getRegionStats(ym?: string): Promise<RegionStatsResult> {
+  const qs = ym ? `?ym=${ym}` : '';
+  const res = await fetch(`/api/stats/regions${qs}`);
+  return parse<RegionStatsResult>(res, '지역 통계 조회 실패');
 }
 
-/** 네이버 웹검색 기반 이미지 조회 */
-export async function getNaverImages(q: string): Promise<NaverImagesResult> {
-  const res = await fetch(`/api/naver/images?q=${encodeURIComponent(q)}`);
-  return parse<NaverImagesResult>(res, '이미지 검색 실패');
+/** 최근 거래. sido 는 단축명('서울'). */
+export async function getRecentDeals(
+  params: { sido?: string; limit?: number } = {},
+): Promise<RecentDealsResult> {
+  const qs = new URLSearchParams();
+  if (params.sido) qs.set('sido', params.sido);
+  if (params.limit) qs.set('limit', String(params.limit));
+
+  const res = await fetch(`/api/deals/recent?${qs.toString()}`);
+  return parse<RecentDealsResult>(res, '최근 거래 조회 실패');
+}
+
+/** 실거래 목록 (필터 + 페이징) */
+export async function getDeals(params: DealListParams): Promise<DealListResult> {
+  const qs = new URLSearchParams();
+  if (params.sggCd) qs.set('sggCd', params.sggCd);
+  if (params.dealYmd) qs.set('dealYmd', params.dealYmd);
+  if (params.aptNm) qs.set('aptNm', params.aptNm);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.size) qs.set('size', String(params.size));
+
+  const res = await fetch(`/api/deals?${qs.toString()}`);
+  return parse<DealListResult>(res, '실거래 조회 실패');
 }

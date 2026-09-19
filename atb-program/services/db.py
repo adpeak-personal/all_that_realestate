@@ -314,6 +314,28 @@ def get_unmatched_apartments(sgg_cd: int | None = None) -> list[dict]:
         conn.close()
 
 
+def reset_matches(sgg_cd: int | None = None) -> int:
+    """매칭 결과 초기화 (match_status=0). 매처를 개선한 뒤 전량 재매칭할 때 쓴다.
+
+    get_unmatched_apartments() 가 match_status=0 만 집으므로, 초기화 없이는
+    이미 매칭된 단지가 새 로직으로 다시 평가되지 않는다.
+    """
+    sql = ("UPDATE apartments SET kapt_code = NULL, match_status = 0, "
+           "match_method = NULL, matched_at = NULL")
+    params: tuple = ()
+    if sgg_cd is not None:
+        sql += " WHERE sgg_cd = %s"
+        params = (sgg_cd,)
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            n = cur.execute(sql, params)
+        conn.commit()
+        return n
+    finally:
+        conn.close()
+
+
 def update_apartment_match(apt_id: int, kapt_code: str | None,
                            status_code: int, method: str) -> None:
     """매칭 결과 저장. kapt_code 는 자동확정(confirmed/matched)일 때만 채운다."""

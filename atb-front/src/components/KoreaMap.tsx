@@ -74,7 +74,7 @@ function getRegionName(feature: Feature): string {
 }
 
 function shortName(name: string): string {
-    let n = name
+    const n = name
         .replace('특별자치도', '')
         .replace('특별자치시', '')
         .replace('광역시', '')
@@ -161,7 +161,7 @@ export default function KoreaMap({
             .enter()
             .append('path')
             .attr('class', 'region')
-            .attr('d', pathGen as any)
+            .attr('d', (d) => pathGen(d))
             .attr('data-name', (d) => getRegionName(d))
             .attr('transform', (d) => isJeju(d) ? `translate(0,${JEJU_OFFSET_Y})` : null)
             .on('click', function (_event, d) {

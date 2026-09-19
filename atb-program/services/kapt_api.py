@@ -1,9 +1,9 @@
 """공동주택(K-apt) 단지정보 API 클라이언트.
 
 국토교통부 3개 서비스(기관코드 1613000)를 감싼다. serviceKey 는 실거래가와 동일 키.
-  - AptListService3      : 단지 목록 (kaptCode 획득)
-  - AptBasisInfoServiceV4: 단지 기본정보 (세대수/주소/준공일 등)
-  - AptBasisInfoServiceV4: 단지 상세정보 (주차/승강기/CCTV 등)
+  - AptListService4      : 단지 목록 (kaptCode 획득)
+  - AptBasisInfoServiceV5: 단지 기본정보 (세대수/주소/준공일 등)
+  - AptBasisInfoServiceV5: 단지 상세정보 (주차/승강기/CCTV 등)
 
 응답은 JSON. 실거래가(apt_api.py)가 XML 인 것과 다르다.
 """
@@ -15,12 +15,24 @@ import requests
 
 import config
 
-_LIST_BASE = "https://apis.data.go.kr/1613000/AptListService3"
-_INFO_BASE = "https://apis.data.go.kr/1613000/AptBasisInfoServiceV4"
+_LIST_BASE = "https://apis.data.go.kr/1613000/AptListService4"
+_INFO_BASE = "https://apis.data.go.kr/1613000/AptBasisInfoServiceV5"
 
 
 class KaptApiError(RuntimeError):
     pass
+
+
+class KaptQuotaExceeded(KaptApiError):
+    """일일 호출 한도 초과. 재시도해도 소용없으므로 호출측은 즉시 중단해야 한다."""
+
+
+# 공공데이터포털이 한도 초과 시 돌려주는 코드/문구
+_QUOTA_MARKERS = (
+    "LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS",
+    "SERVICE_ACCESS_DENIED",
+    "요청횟수",
+)
 
 
 def _get(url: str, params: dict, timeout: int = 15) -> dict:
@@ -39,11 +51,22 @@ def _get(url: str, params: dict, timeout: int = 15) -> dict:
     except ValueError as e:
         raise KaptApiError(f"JSON 파싱 실패: {e}\n{res.text[:200]}") from e
 
+    # OpenAPI 레벨 오류 (response 래퍼 없이 OpenAPI_ServiceResponse 로 옴)
+    cmm = (data.get("OpenAPI_ServiceResponse") or {}).get("cmmMsgHeader")
+    if cmm:
+        msg = f"{cmm.get('errMsg')} / {cmm.get('returnAuthMsg')}"
+        if any(m in str(msg) for m in _QUOTA_MARKERS):
+            raise KaptQuotaExceeded(f"일일 호출 한도 초과: {msg}")
+        raise KaptApiError(f"API 오류: {msg}")
+
     body = (data.get("response") or {}).get("body")
     header = (data.get("response") or {}).get("header") or {}
     code = header.get("resultCode")
     if code not in (None, "00", "000", "0"):
-        raise KaptApiError(f"API 오류: [{code}] {header.get('resultMsg')}")
+        msg = header.get("resultMsg")
+        if any(m in str(msg) for m in _QUOTA_MARKERS):
+            raise KaptQuotaExceeded(f"일일 호출 한도 초과: [{code}] {msg}")
+        raise KaptApiError(f"API 오류: [{code}] {msg}")
     if body is None:
         raise KaptApiError(f"응답에 body 없음: {res.text[:200]}")
     return body
@@ -78,7 +101,7 @@ def fetch_sigungu_apt_list(sigungu_code: str, page_size: int = 100) -> list[Kapt
     out: list[KaptListItem] = []
     page = 1
     while True:
-        body = _get(f"{_LIST_BASE}/getSigunguAptList3",
+        body = _get(f"{_LIST_BASE}/getSigunguAptList4",
                     {"sigunguCode": sigungu_code, "pageNo": page, "numOfRows": page_size})
         items = body.get("items") or []
         if isinstance(items, dict):          # 단건일 때 dict 로 오는 경우 방어
@@ -94,11 +117,11 @@ def fetch_sigungu_apt_list(sigungu_code: str, page_size: int = 100) -> list[Kapt
 # ─── 기본/상세 정보 ───────────────────────────────────────────────────────────
 def fetch_basis_info(kapt_code: str) -> dict:
     """단지 기본정보 (세대수/주소/준공일/시공사/면적분포 등). 원본 dict 반환."""
-    body = _get(f"{_INFO_BASE}/getAphusBassInfoV4", {"kaptCode": kapt_code})
+    body = _get(f"{_INFO_BASE}/getAphusBassInfoV5", {"kaptCode": kapt_code})
     return body.get("item") or {}
 
 
 def fetch_detail_info(kapt_code: str) -> dict:
     """단지 상세정보 (주차/승강기/CCTV/구조/부대복리시설 등). 원본 dict 반환."""
-    body = _get(f"{_INFO_BASE}/getAphusDtlInfoV4", {"kaptCode": kapt_code})
+    body = _get(f"{_INFO_BASE}/getAphusDtlInfoV5", {"kaptCode": kapt_code})
     return body.get("item") or {}
