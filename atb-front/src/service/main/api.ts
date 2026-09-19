@@ -7,6 +7,8 @@ import type {
   RecentDealsResult,
   RegionStatsResult,
   SggResult,
+  TrendParams,
+  TrendResult,
 } from './type';
 
 async function parse<T>(res: Response, fallbackMsg: string): Promise<T> {
@@ -58,4 +60,16 @@ export async function getDeals(params: DealListParams): Promise<DealListResult> 
 export async function getAptDetail(aptId: number): Promise<AptDetail> {
   const res = await fetch(`/api/apt/${aptId}`);
   return parse<AptDetail>(res, '단지 정보를 불러오지 못했습니다');
+}
+
+/** 월별 시세 추이 (㎡당 평균 단가) */
+export async function getPriceTrend(params: TrendParams = {}): Promise<TrendResult> {
+  const qs = new URLSearchParams();
+  if (params.sido) qs.set('sido', params.sido);
+  if (params.sggCd) qs.set('sggCd', params.sggCd);
+  if (params.aptId) qs.set('aptId', String(params.aptId));
+  if (params.months) qs.set('months', String(params.months));
+
+  const res = await fetch(`/api/stats/trend?${qs.toString()}`);
+  return parse<TrendResult>(res, '시세 추이 조회 실패');
 }

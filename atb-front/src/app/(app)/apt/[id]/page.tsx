@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { useAptDetail, useDeals } from '../../../../service/main/queries';
+import PriceTrendChart from '../../../../components/PriceTrendChart';
+import { useAptDetail, useDeals, usePriceTrend } from '../../../../service/main/queries';
 import type { AptDetail, Deal } from '../../../../service/main/type';
 import { formatDate, formatPrice, toPyeong } from '../../../../lib/format';
 
@@ -94,6 +95,9 @@ export default function AptDetailPage() {
   const [page, setPage] = useState(1);
 
   const detailQuery = useAptDetail(aptId);
+  const trendQuery = usePriceTrend(
+    Number.isFinite(aptId) && aptId > 0 ? { aptId, months: 12 } : null,
+  );
   const dealsQuery = useDeals(
     Number.isFinite(aptId) && aptId > 0 ? { aptId, page, size: PAGE_SIZE } : null,
   );
@@ -162,6 +166,13 @@ export default function AptDetailPage() {
 
         <div className="space-y-6">
           <KaptPanel apt={apt} />
+
+          <PriceTrendChart
+            items={trendQuery.data?.items ?? []}
+            loading={trendQuery.isLoading}
+            title="㎡당 단가 추이"
+            subtitle="최근 12개월. 거래가 없던 달은 선이 끊깁니다."
+          />
 
           {/* ── 거래된 전용면적 ── */}
           {areaChips.length > 0 && (

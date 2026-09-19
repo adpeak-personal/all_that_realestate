@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import KoreaMap from '../../components/KoreaMap';
-import { useRecentDeals, useRegionStats } from '../../service/main/queries';
+import PriceTrendChart from '../../components/PriceTrendChart';
+import { usePriceTrend, useRecentDeals, useRegionStats } from '../../service/main/queries';
 import type { Deal, RegionStat } from '../../service/main/type';
 import { formatDate, formatPrice, formatYearMonth } from '../../lib/format';
 
@@ -146,6 +147,8 @@ export default function Home() {
 
   const statsQuery = useRegionStats();
   const dealsQuery = useRecentDeals(shortSelected, 8);
+  // 지역 미선택이면 전국 추이
+  const trendQuery = usePriceTrend({ sido: shortSelected ?? undefined, months: 12 });
 
   const stats = statsQuery.data;
   const baseMonthLabel = formatYearMonth(stats?.baseMonth ?? null);
@@ -350,6 +353,18 @@ export default function Home() {
               )}
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* ── 시세 추이 ── */}
+      <section className="pb-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <PriceTrendChart
+            items={trendQuery.data?.items ?? []}
+            loading={trendQuery.isLoading}
+            title={`${shortSelected ?? '전국'} ㎡당 단가 추이`}
+            subtitle="최근 12개월 평균. 평균 거래금액이 아니라 면적당 단가라 평형 구성에 덜 흔들립니다."
+          />
         </div>
       </section>
 

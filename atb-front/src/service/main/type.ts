@@ -90,3 +90,23 @@ export interface AptDetail {
     addrJibun: string | null;
   } | null;
 }
+
+/** 월별 시세 추이 1점. 거래가 없던 달은 trades 0 / 단가 null. */
+export interface TrendPoint {
+  ym: string;               // 'YYYYMM'
+  trades: number;
+  unitPrice: number | null; // ㎡당 평균 단가 (만원)
+  avgPrice: number | null;  // 평균 거래금액 (만원)
+}
+
+export interface TrendResult {
+  baseMonth: string | null;
+  items: TrendPoint[];
+}
+
+export interface TrendParams {
+  sido?: string;
+  sggCd?: string;
+  aptId?: number;
+  months?: number;
+}

@@ -1,6 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
-import { getAptDetail, getDeals, getRecentDeals, getRegionStats, getSggCodes } from './api';
-import type { DealListParams } from './type';
+import {
+  getAptDetail,
+  getDeals,
+  getPriceTrend,
+  getRecentDeals,
+  getRegionStats,
+  getSggCodes,
+} from './api';
+import type { DealListParams, TrendParams } from './type';
 
 export const mainKeys = {
   sgg: () => ['sgg'] as const,
@@ -9,6 +16,7 @@ export const mainKeys = {
     ['deals', 'recent', sido, limit] as const,
   deals: (params: DealListParams) => ['deals', 'list', params] as const,
   aptDetail: (id: number) => ['apt', id] as const,
+  trend: (params: TrendParams) => ['stats', 'trend', params] as const,
 };
 
 /** 시군구 코드 목록. 거의 변하지 않으므로 오래 캐시한다. */
@@ -57,5 +65,15 @@ export function useAptDetail(aptId: number) {
     queryFn: () => getAptDetail(aptId),
     enabled: Number.isFinite(aptId) && aptId > 0,
     staleTime: 1000 * 60 * 30,
+  });
+}
+
+/** 월별 시세 추이. 범위(sido/sggCd/aptId)가 바뀌면 자동으로 다시 받는다. */
+export function usePriceTrend(params: TrendParams | null) {
+  return useQuery({
+    queryKey: mainKeys.trend(params ?? {}),
+    queryFn: () => getPriceTrend(params!),
+    enabled: params !== null,
+    staleTime: 1000 * 60 * 5,
   });
 }

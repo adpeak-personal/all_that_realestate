@@ -6,6 +6,7 @@ import {
     listDeals,
     sggCodes,
     aptDetail,
+    priceTrend,
 } from '../lib/queries';
 
 // 이 서버는 조회 전용이다.
@@ -99,6 +100,33 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             fastify.log.error(err);
             reply.status(500);
             return { error: '실거래 조회 실패' };
+        }
+    });
+
+    /**
+     * 월별 시세 추이 — GET /api/stats/trend?sido=서울&months=12
+     * sido / sggCd / aptId 중 하나로 범위를 좁힌다. 없으면 전국.
+     * 값은 ㎡당 평균 단가(만원). 거래 없던 달도 trades:0 으로 포함된다.
+     */
+    fastify.get('/stats/trend', async (request, reply) => {
+        const { sido, sggCd, aptId, months } = request.query as {
+            sido?: string;
+            sggCd?: string;
+            aptId?: string;
+            months?: string;
+        };
+
+        try {
+            return await priceTrend({
+                sido,
+                sggCd,
+                aptId: aptId ? Number(aptId) : undefined,
+                months: months ? Number(months) : undefined,
+            });
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '시세 추이 조회 실패' };
         }
     });
 

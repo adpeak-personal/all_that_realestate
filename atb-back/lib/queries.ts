@@ -357,3 +357,106 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
             : null,
     };
 }
+
+export interface TrendPoint {
+    ym: string;                    // 'YYYYMM'
+    trades: number;                // 그 달 거래 건수 (0 이면 거래 없음)
+    unitPrice: number | null;      // ㎡당 평균 단가 (만원). 거래 없으면 null
+    avgPrice: number | null;       // 평균 거래금액 (만원). 거래 없으면 null
+}
+
+/** ym 에서 n개월 전까지의 'YYYYMM' 목록 (오름차순). */
+function monthRange(end: YearMonth, count: number): string[] {
+    const out: string[] = [];
+    let { year, month } = end;
+    for (let i = 0; i < count; i++) {
+        out.push(`${year}${String(month).padStart(2, '0')}`);
+        month -= 1;
+        if (month === 0) {
+            year -= 1;
+            month = 12;
+        }
+    }
+    return out.reverse();
+}
+
+/**
+ * 월별 시세 추이.
+ *
+ * 값은 '㎡당 평균 단가' 다. 평균 거래금액은 그 달에 큰 평형이 많이 거래되면
+ * 같이 오르기 때문에 시세 추이로 읽으면 오해를 부른다.
+ *
+ * 거래가 없던 달도 trades:0 / unitPrice:null 로 채워서 돌려준다.
+ * 프론트가 선을 끊어 그릴 수 있어야 없는 구간을 직선으로 이어 속이지 않는다.
+ */
+export async function priceTrend(opts: {
+    sido?: string;
+    sggCd?: string;
+    aptId?: number;
+    months?: number;
+}): Promise<{ baseMonth: string | null; items: TrendPoint[] }> {
+    const latest = await latestDealMonth();
+    if (!latest) return { baseMonth: null, items: [] };
+
+    const months = Math.min(Math.max(opts.months ?? 12, 2), 60);
+    const wanted = monthRange(latest, months);
+    const oldest = wanted[0];
+
+    const params: unknown[] = [];
+    let where = `WHERE ${NOT_CANCELED}
+          AND (d.deal_year * 100 + d.deal_month) >= ?`;
+    params.push(Number(oldest));
+
+    if (opts.aptId) {
+        where += ' AND d.apt_id = ?';
+        params.push(opts.aptId);
+    }
+    if (opts.sggCd) {
+        where += ' AND d.sgg_cd = ?';
+        params.push(Number(opts.sggCd));
+    }
+    if (opts.sido) {
+        const fulls = toFullSido(opts.sido);
+        if (fulls.length === 0) return { baseMonth: null, items: [] };
+        where += ` AND s.sido_nm IN (${fulls.map(() => '?').join(',')})`;
+        params.push(...fulls);
+    }
+
+    const rows = (await query(
+        `SELECT d.deal_year AS y, d.deal_month AS m,
+                COUNT(*) AS trades,
+                AVG(d.deal_amount / d.exclu_use_ar) AS unit_price,
+                AVG(d.deal_amount) AS avg_price
+           FROM apartment_deals d
+           JOIN sgg_codes s ON s.sgg_cd = d.sgg_cd
+           ${where}
+          GROUP BY d.deal_year, d.deal_month`,
+        params,
+    )) as Array<{
+        y: number;
+        m: number;
+        trades: number;
+        unit_price: string | null;
+        avg_price: string | null;
+    }>;
+
+    const byYm = new Map(
+        rows.map((r) => [`${r.y}${String(r.m).padStart(2, '0')}`, r]),
+    );
+
+    const items: TrendPoint[] = wanted.map((ym) => {
+        const r = byYm.get(ym);
+        if (!r || Number(r.trades) === 0) {
+            return { ym, trades: 0, unitPrice: null, avgPrice: null };
+        }
+        return {
+            ym,
+            trades: Number(r.trades),
+            unitPrice: Math.round(Number(r.unit_price ?? 0)),
+            avgPrice: Math.round(Number(r.avg_price ?? 0)),
+        };
+    });
+
+    const baseMonth = `${latest.year}${String(latest.month).padStart(2, '0')}`;
+    return { baseMonth, items };
+}
