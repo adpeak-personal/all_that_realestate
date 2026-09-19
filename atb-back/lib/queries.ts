@@ -132,18 +132,24 @@ interface RawDeal {
     thumbnail_url: string | null;
 }
 
-function mapDeal(r: RawDeal): DealRow {
-    // mysql2 는 DATE 를 로컬 시간대 Date 로 준다. toISOString() 을 쓰면
-    // UTC 변환 때문에 하루 밀릴 수 있어 로컬 기준으로 직접 포맷한다.
-    let date: string;
-    if (r.deal_date instanceof Date) {
-        const y = r.deal_date.getFullYear();
-        const m = String(r.deal_date.getMonth() + 1).padStart(2, '0');
-        const d = String(r.deal_date.getDate()).padStart(2, '0');
-        date = `${y}-${m}-${d}`;
-    } else {
-        date = String(r.deal_date).slice(0, 10);
+/**
+ * mysql2 는 DATE 를 로컬 시간대 Date 로 준다.
+ * 그대로 JSON 직렬화하면 toISOString() 이 UTC 로 바꿔 KST 기준 하루가 밀린다
+ * (2004-05-07 → '2004-05-06T15:00:00.000Z'). 로컬 기준으로 직접 포맷한다.
+ */
+function toDateString(v: Date | string | null): string | null {
+    if (v === null || v === undefined) return null;
+    if (v instanceof Date) {
+        const y = v.getFullYear();
+        const m = String(v.getMonth() + 1).padStart(2, '0');
+        const d = String(v.getDate()).padStart(2, '0');
+        return `${y}-${m}-${d}`;
     }
+    return String(v).slice(0, 10);
+}
+
+function mapDeal(r: RawDeal): DealRow {
+    const date = toDateString(r.deal_date) ?? '';
 
     return {
         id: r.id,
@@ -195,6 +201,7 @@ export async function listDeals(opts: {
     sggCd?: string;
     dealYmd?: string; // YYYYMM
     aptNm?: string;
+    aptId?: number;
     page?: number;
     size?: number;
 }): Promise<DealListResult> {
@@ -216,6 +223,10 @@ export async function listDeals(opts: {
     if (opts.aptNm) {
         where += ' AND d.apt_nm LIKE ?';
         params.push(`%${opts.aptNm}%`);
+    }
+    if (opts.aptId) {
+        where += ' AND d.apt_id = ?';
+        params.push(opts.aptId);
     }
 
     const countRows = (await query(
@@ -257,8 +268,35 @@ export async function sggCodes(): Promise<Array<{ code: string; sido: string; sg
     }));
 }
 
-/** 단지 상세 — apartments + K-apt 매칭 정보 JOIN. */
-export async function aptDetail(aptId: number) {
+export interface AptDetail {
+    id: number;
+    aptNm: string;
+    sido: string;
+    sgg: string;
+    umdNm: string;
+    jibun: string | null;
+    buildYear: number | null;
+    thumbnailUrl: string | null;
+    excluAreas: number[];
+    matchStatus: number;
+    /** 아래는 K-apt 매칭이 된 단지만 채워진다 (미매칭이면 전부 null) */
+    kapt: {
+        name: string;
+        totalHouseholds: number | null;
+        dongCnt: number | null;
+        topFloor: number | null;
+        useAprDate: string | null;
+        heatType: string | null;
+        hallType: string | null;
+        builder: string | null;
+        parkingTotal: number | null;
+        addrRoad: string | null;
+        addrJibun: string | null;
+    } | null;
+}
+
+/** 단지 상세 — apartments + K-apt 매칭 정보 JOIN. 없으면 null. */
+export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     const rows = (await query(
         `SELECT a.id, a.apt_nm, a.umd_nm, a.jibun, a.build_year,
                 a.thumbnail_url, a.exclu_areas, a.match_status,
@@ -271,7 +309,51 @@ export async function aptDetail(aptId: number) {
            LEFT JOIN kapt_complexes k ON k.kapt_code = a.kapt_code
           WHERE a.id = ?`,
         [aptId],
-    )) as Array<Record<string, unknown>>;
+    )) as Array<Record<string, any>>;
 
-    return rows[0] ?? null;
+    const r = rows[0];
+    if (!r) return null;
+
+    // exclu_areas 는 JSON 컬럼. 드라이버 설정에 따라 문자열로 올 수 있어 방어한다.
+    let areas: number[] = [];
+    const raw = r.exclu_areas;
+    if (Array.isArray(raw)) {
+        areas = raw.map(Number).filter((n: number) => Number.isFinite(n));
+    } else if (typeof raw === 'string') {
+        try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) areas = parsed.map(Number).filter(Number.isFinite);
+        } catch {
+            areas = [];
+        }
+    }
+    areas.sort((a, b) => a - b);
+
+    return {
+        id: r.id,
+        aptNm: r.apt_nm,
+        sido: toShortSido(r.sido_nm),
+        sgg: r.sgg_nm,
+        umdNm: r.umd_nm,
+        jibun: r.jibun ?? null,
+        buildYear: r.build_year ?? null,
+        thumbnailUrl: r.thumbnail_url ?? null,
+        excluAreas: areas,
+        matchStatus: r.match_status,
+        kapt: r.kapt_name
+            ? {
+                  name: r.kapt_name,
+                  totalHouseholds: r.total_households ?? null,
+                  dongCnt: r.dong_cnt ?? null,
+                  topFloor: r.top_floor ?? null,
+                  useAprDate: toDateString(r.use_apr_date ?? null),
+                  heatType: r.heat_type ?? null,
+                  hallType: r.hall_type ?? null,
+                  builder: r.builder ?? null,
+                  parkingTotal: r.parking_total ?? null,
+                  addrRoad: r.addr_road ?? null,
+                  addrJibun: r.addr_jibun ?? null,
+              }
+            : null,
+    };
 }

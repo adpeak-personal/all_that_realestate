@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { getDeals, getRecentDeals, getRegionStats, getSggCodes } from './api';
+import { getAptDetail, getDeals, getRecentDeals, getRegionStats, getSggCodes } from './api';
 import type { DealListParams } from './type';
 
 export const mainKeys = {
@@ -8,6 +8,7 @@ export const mainKeys = {
   recentDeals: (sido: string | null, limit: number) =>
     ['deals', 'recent', sido, limit] as const,
   deals: (params: DealListParams) => ['deals', 'list', params] as const,
+  aptDetail: (id: number) => ['apt', id] as const,
 };
 
 /** 시군구 코드 목록. 거의 변하지 않으므로 오래 캐시한다. */
@@ -46,5 +47,15 @@ export function useDeals(params: DealListParams | null) {
     queryKey: mainKeys.deals(params ?? {}),
     queryFn: () => getDeals(params!),
     enabled: params !== null,
+  });
+}
+
+/** 단지 상세. 단지 정보는 거의 안 바뀌므로 오래 캐시한다. */
+export function useAptDetail(aptId: number) {
+  return useQuery({
+    queryKey: mainKeys.aptDetail(aptId),
+    queryFn: () => getAptDetail(aptId),
+    enabled: Number.isFinite(aptId) && aptId > 0,
+    staleTime: 1000 * 60 * 30,
   });
 }

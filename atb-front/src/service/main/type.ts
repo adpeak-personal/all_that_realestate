@@ -59,6 +59,34 @@ export interface DealListParams {
   sggCd?: string;
   dealYmd?: string; // YYYYMM
   aptNm?: string;
+  aptId?: number;   // 단지 상세의 거래이력 조회용
   page?: number;
   size?: number;
+}
+
+/** 단지 상세. kapt 는 K-apt 매칭이 된 단지만 채워진다. */
+export interface AptDetail {
+  id: number;
+  aptNm: string;
+  sido: string;
+  sgg: string;
+  umdNm: string;
+  jibun: string | null;
+  buildYear: number | null;
+  thumbnailUrl: string | null;
+  excluAreas: number[];
+  matchStatus: number;
+  kapt: {
+    name: string;
+    totalHouseholds: number | null;
+    dongCnt: number | null;
+    topFloor: number | null;
+    useAprDate: string | null;
+    heatType: string | null;
+    hallType: string | null;
+    builder: string | null;
+    parkingTotal: number | null;
+    addrRoad: string | null;
+    addrJibun: string | null;
+  } | null;
 }

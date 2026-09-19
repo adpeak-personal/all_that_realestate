@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import KoreaMap from '../../components/KoreaMap';
 import { useRecentDeals, useRegionStats } from '../../service/main/queries';
 import type { Deal, RegionStat } from '../../service/main/type';
+import { formatDate, formatPrice, formatYearMonth } from '../../lib/format';
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -22,21 +24,6 @@ function toShortName(rawName: string): string {
     '강원특별자치': '강원', '전북특별자치': '전북',
   };
   return overrides[n] ?? n;
-}
-
-function formatPrice(manwon: number): string {
-  if (manwon >= 10000) {
-    const eok = Math.floor(manwon / 10000);
-    const rem = manwon % 10000;
-    return rem === 0 ? `${eok}억` : `${eok}억 ${rem.toLocaleString()}만`;
-  }
-  return `${manwon.toLocaleString()}만`;
-}
-
-/** 'YYYYMM' → '2026년 5월' */
-function formatBaseMonth(ym: string | null): string | null {
-  if (!ym || ym.length !== 6) return null;
-  return `${ym.slice(0, 4)}년 ${Number(ym.slice(4, 6))}월`;
 }
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
@@ -107,8 +94,8 @@ function FeatureItem({ label, desc, disabled }: { label: string; desc: string; d
 }
 
 function DealCard({ deal }: { deal: Deal }) {
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 p-4 hover:shadow-lg hover:border-indigo-300 transition-all cursor-pointer group">
+  const card = (
+    <div className="bg-white rounded-xl border border-slate-200 p-4 h-full hover:shadow-lg hover:border-indigo-300 transition-all group">
       <div className="flex items-center justify-between mb-2">
         <span className="text-xs font-medium bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
           아파트
@@ -124,9 +111,12 @@ function DealCard({ deal }: { deal: Deal }) {
         {deal.excluUseAr.toFixed(1)}㎡{deal.floor !== null && ` · ${deal.floor}층`}
       </p>
       <p className="text-2xl font-bold text-indigo-600">{formatPrice(deal.dealAmount)}</p>
-      <p className="text-xs text-slate-400 mt-1">{deal.dealDate.replace(/-/g, '.')} 거래</p>
+      <p className="text-xs text-slate-400 mt-1">{formatDate(deal.dealDate)} 거래</p>
     </div>
   );
+
+  // apt_id 가 없는 거래(단지 미연결)는 상세로 갈 수 없으므로 링크하지 않는다.
+  return deal.aptId ? <Link href={`/apt/${deal.aptId}`}>{card}</Link> : card;
 }
 
 /** 데이터가 아직 수집되지 않았을 때 공통으로 쓰는 안내 */
@@ -158,7 +148,7 @@ export default function Home() {
   const dealsQuery = useRecentDeals(shortSelected, 8);
 
   const stats = statsQuery.data;
-  const baseMonthLabel = formatBaseMonth(stats?.baseMonth ?? null);
+  const baseMonthLabel = formatYearMonth(stats?.baseMonth ?? null);
 
   const regionStat: RegionStat | null = useMemo(() => {
     if (!shortSelected || !stats) return null;
@@ -270,9 +260,18 @@ export default function Home() {
                         {regionDeals.map((deal) => (
                           <div key={deal.id} className="flex items-center justify-between py-2.5">
                             <div className="min-w-0 mr-3">
-                              <p className="text-sm font-medium text-slate-800 truncate">
-                                {deal.aptNm}
-                              </p>
+                              {deal.aptId ? (
+                                <Link
+                                  href={`/apt/${deal.aptId}`}
+                                  className="text-sm font-medium text-slate-800 truncate block hover:text-indigo-600"
+                                >
+                                  {deal.aptNm}
+                                </Link>
+                              ) : (
+                                <p className="text-sm font-medium text-slate-800 truncate">
+                                  {deal.aptNm}
+                                </p>
+                              )}
                               <p className="text-xs text-slate-400">
                                 {deal.sgg} · {deal.excluUseAr.toFixed(1)}㎡
                                 {deal.floor !== null && ` · ${deal.floor}층`}

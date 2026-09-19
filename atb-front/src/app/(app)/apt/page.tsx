@@ -1,19 +1,12 @@
 'use client';
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { useDeals, useRegionStats, useSggCodes } from '../../../service/main/queries';
 import type { Deal, DealListParams } from '../../../service/main/type';
+import { formatPrice } from '../../../lib/format';
 
 const PAGE_SIZE = 50;
-
-function formatPrice(manwon: number): string {
-  if (manwon >= 10000) {
-    const eok = Math.floor(manwon / 10000);
-    const rem = manwon % 10000;
-    return rem === 0 ? `${eok}억` : `${eok}억 ${rem.toLocaleString()}만`;
-  }
-  return `${manwon.toLocaleString()}만`;
-}
 
 function currentYearMonth(): string {
   const d = new Date();
@@ -196,7 +189,18 @@ export default function AptTradePage() {
                   <tbody className="divide-y divide-slate-100">
                     {result.items.map((d: Deal) => (
                       <tr key={d.id} className="hover:bg-slate-50">
-                        <td className="px-5 py-3 font-medium text-slate-800">{d.aptNm}</td>
+                        <td className="px-5 py-3 font-medium">
+                          {d.aptId ? (
+                            <Link
+                              href={`/apt/${d.aptId}`}
+                              className="text-slate-800 hover:text-indigo-600 hover:underline"
+                            >
+                              {d.aptNm}
+                            </Link>
+                          ) : (
+                            <span className="text-slate-800">{d.aptNm}</span>
+                          )}
+                        </td>
                         <td className="px-3 py-3 text-slate-500">{d.umdNm}</td>
                         <td className="px-3 py-3 text-right text-slate-600">
                           {d.excluUseAr.toFixed(2)}㎡

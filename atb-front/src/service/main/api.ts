@@ -1,6 +1,7 @@
 // 백엔드 fetch 호출 (raw). React Query 훅은 queries.ts 참고.
-// next.config.ts 의 rewrites 로 /api/* → http://localhost:4000/api/* 프록시된다.
+// next.config.ts 의 rewrites 로 /api/* → 백엔드(6050) 로 프록시된다.
 import type {
+  AptDetail,
   DealListParams,
   DealListResult,
   RecentDealsResult,
@@ -45,9 +46,16 @@ export async function getDeals(params: DealListParams): Promise<DealListResult> 
   if (params.sggCd) qs.set('sggCd', params.sggCd);
   if (params.dealYmd) qs.set('dealYmd', params.dealYmd);
   if (params.aptNm) qs.set('aptNm', params.aptNm);
+  if (params.aptId) qs.set('aptId', String(params.aptId));
   if (params.page) qs.set('page', String(params.page));
   if (params.size) qs.set('size', String(params.size));
 
   const res = await fetch(`/api/deals?${qs.toString()}`);
   return parse<DealListResult>(res, '실거래 조회 실패');
+}
+
+/** 단지 상세 */
+export async function getAptDetail(aptId: number): Promise<AptDetail> {
+  const res = await fetch(`/api/apt/${aptId}`);
+  return parse<AptDetail>(res, '단지 정보를 불러오지 못했습니다');
 }

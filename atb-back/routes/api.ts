@@ -67,12 +67,16 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         }
     });
 
-    /** 실거래 목록 — GET /api/deals?sggCd=11680&dealYmd=202605&aptNm=래미안&page=1 */
+    /**
+     * 실거래 목록 — GET /api/deals?sggCd=11680&dealYmd=202605&aptNm=래미안&page=1
+     * aptId 를 주면 그 단지의 거래이력만 (단지 상세 페이지용).
+     */
     fastify.get('/deals', async (request, reply) => {
-        const { sggCd, dealYmd, aptNm, page, size } = request.query as {
+        const { sggCd, dealYmd, aptNm, aptId, page, size } = request.query as {
             sggCd?: string;
             dealYmd?: string;
             aptNm?: string;
+            aptId?: string;
             page?: string;
             size?: string;
         };
@@ -87,6 +91,7 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
                 sggCd,
                 dealYmd,
                 aptNm,
+                aptId: aptId ? Number(aptId) : undefined,
                 page: page ? Number(page) : undefined,
                 size: size ? Number(size) : undefined,
             });
