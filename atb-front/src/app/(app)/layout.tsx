@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LogoMark from '../../components/LogoMark';
 
 /**
  * 헤더/푸터.
@@ -16,7 +17,9 @@ export default function MainLayout({
         <div className="flex flex-col min-h-screen">
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-                    <Link href="/" className="flex items-center gap-1.5">
+                    <Link href="/" className="flex items-center gap-2">
+                        {/* aria-hidden 이다 — 바로 옆 워드마크를 두 번 읽지 않게 */}
+                        <LogoMark size={28} className="text-brand-900" />
                         <span className="text-xl font-extrabold text-brand-700 tracking-tight">
                             올댓부동산
                         </span>
@@ -50,7 +53,10 @@ export default function MainLayout({
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
                     <div className="flex flex-col sm:flex-row justify-between gap-8">
                         <div>
-                            <p className="text-base font-bold text-white mb-1">올댓부동산</p>
+                            <p className="flex items-center gap-2 text-base font-bold text-white mb-1">
+                                <LogoMark size={22} className="text-white" />
+                                올댓부동산
+                            </p>
                             <p className="text-sm">전국 아파트 실거래가와 지역별 시세</p>
                         </div>
 
