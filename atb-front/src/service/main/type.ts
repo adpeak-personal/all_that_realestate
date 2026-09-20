@@ -162,3 +162,72 @@ export interface SiteSummary {
   firstMonth: string | null;
   lastMonth: string | null;
 }
+
+/* ── 분양 ──────────────────────────────────────────────────────────────── */
+
+export type PresaleStatus = 'upcoming' | 'open' | 'closed' | 'unknown';
+
+export interface PresaleRow {
+  houseManageNo: string;
+  pblancNo: string;
+  id: string;
+  houseNm: string;
+  houseType: string | null;
+  rentType: string | null;
+  sido: string | null;
+  sgg: string | null;
+  sggCd: number | null;
+  addr: string | null;
+  totalHouseholds: number | null;
+  noticeDate: string | null;
+  rceptBgnde: string | null;
+  rceptEndde: string | null;
+  winnerDate: string | null;
+  moveinYm: string | null;
+  developer: string | null;
+  builder: string | null;
+  status: PresaleStatus;
+  isFeatured: boolean;
+  minAmount: number | null;
+  maxAmount: number | null;
+}
+
+export interface PresaleListResult {
+  items: PresaleRow[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+export interface PresaleTypeRow {
+  modelNo: string;
+  houseTy: string | null;
+  excluAr: number | null;
+  supplyAr: number | null;
+  generalHshldco: number | null;
+  specialHshldco: number | null;
+  topAmount: number | null;
+}
+
+export interface PresaleDetail extends PresaleRow {
+  subscrptAreaNm: string | null;
+  spsplyBgnde: string | null;
+  spsplyEndde: string | null;
+  contractBgnde: string | null;
+  contractEndde: string | null;
+  tel: string | null;
+  homepage: string | null;
+  pblancUrl: string | null;
+  specltRdnEarthAt: string | null;
+  mdatTrgetAreaAt: string | null;
+  parcprcUlsAt: string | null;
+  lat: number | null;
+  lng: number | null;
+  types: PresaleTypeRow[];
+}
+
+export interface PresaleSummary {
+  open: number;
+  upcoming: number;
+  total: number;
+}

@@ -4,6 +4,8 @@ import {
   fetchApts,
   fetchPriceTrend,
   fetchRecentDeals,
+  fetchPresales,
+  fetchPresaleSummary,
   fetchRegionStats,
   fetchSiteSummary,
 } from '../../service/server/api';
@@ -32,13 +34,16 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [summary, stats, deals, trend, popular] = await Promise.all([
-    fetchSiteSummary(),
-    fetchRegionStats(),
-    fetchRecentDeals(10),
-    fetchPriceTrend({ months: 12 }),
-    fetchApts({ sort: 'deals', size: 8 }),
-  ]);
+  const [summary, stats, deals, trend, popular, presales, presaleSummary] =
+    await Promise.all([
+      fetchSiteSummary(),
+      fetchRegionStats(),
+      fetchRecentDeals(10),
+      fetchPriceTrend({ months: 12 }),
+      fetchApts({ sort: 'deals', size: 8 }),
+      fetchPresales({ size: 3 }),
+      fetchPresaleSummary(),
+    ]);
 
   return (
     <HomeView
@@ -47,6 +52,8 @@ export default async function HomePage() {
       trend={trend ?? undefined}
       recent={deals?.items ?? []}
       popular={popular?.items ?? []}
+      presales={presales?.items ?? []}
+      presaleSummary={presaleSummary ?? undefined}
     />
   );
 }

@@ -11,7 +11,11 @@ import {
     sggBreakdown,
     listApts,
     siteSummary,
+    listPresales,
+    presaleDetail,
+    presaleSummary,
 } from '../lib/queries';
+import type { PresaleStatus } from '../lib/queries';
 import type { AptSort } from '../lib/queries';
 
 // 이 서버는 조회 전용이다.
@@ -190,6 +194,71 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             fastify.log.error(err);
             reply.status(500);
             return { error: '단지 목록 조회 실패' };
+        }
+    });
+
+    // ── 분양 ──────────────────────────────────────────────────────────────
+    // 수집기는 아직 없다. 화면·API 를 먼저 세워 두고 매핑만 붙일 수 있게 한다.
+
+    /** 분양 요약 — GET /api/presales/summary */
+    fastify.get('/presales/summary', async (request, reply) => {
+        try {
+            return await presaleSummary();
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '분양 요약 조회 실패' };
+        }
+    });
+
+    /**
+     * 분양 공고 목록 — GET /api/presales?sido=서울&status=open&page=1
+     * status: open(접수중) / upcoming(예정) / closed(마감)
+     */
+    fastify.get('/presales', async (request, reply) => {
+        const { sido, sggCd, status, houseType, q, page, size } = request.query as {
+            sido?: string;
+            sggCd?: string;
+            status?: string;
+            houseType?: string;
+            q?: string;
+            page?: string;
+            size?: string;
+        };
+
+        const allowed = new Set(['open', 'upcoming', 'closed']);
+
+        try {
+            return await listPresales({
+                sido,
+                sggCd,
+                status: allowed.has(status ?? '') ? (status as PresaleStatus) : undefined,
+                houseType,
+                q,
+                page: page ? Number(page) : undefined,
+                size: size ? Number(size) : undefined,
+            });
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '분양 목록 조회 실패' };
+        }
+    });
+
+    /** 분양 공고 상세 — GET /api/presales/:id  (id = 주택관리번호-공고번호) */
+    fastify.get('/presales/:id', async (request, reply) => {
+        const { id } = request.params as { id: string };
+        try {
+            const item = await presaleDetail(id);
+            if (!item) {
+                reply.status(404);
+                return { error: '분양 공고를 찾을 수 없습니다.' };
+            }
+            return item;
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '분양 공고 조회 실패' };
         }
     });
 

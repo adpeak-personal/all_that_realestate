@@ -17,6 +17,10 @@ import type {
   RecentDealsResult,
   RegionStatsResult,
   SggResult,
+  PresaleDetail,
+  PresaleListResult,
+  PresaleStatus,
+  PresaleSummary,
   SiteSummary,
   TrendResult,
 } from '../main/type';
@@ -107,4 +111,32 @@ export function fetchApts(params: {
 /** 사이트 전체 수집 현황 */
 export function fetchSiteSummary() {
   return get<SiteSummary>('/api/stats/summary', 60 * 60);
+}
+
+/* ── 분양 ──────────────────────────────────────────────────────────────── */
+
+export function fetchPresaleSummary() {
+  return get<PresaleSummary>('/api/presales/summary', 300);
+}
+
+export function fetchPresales(params: {
+  sido?: string;
+  status?: PresaleStatus;
+  houseType?: string;
+  q?: string;
+  page?: number;
+  size?: number;
+} = {}) {
+  const qs = new URLSearchParams();
+  if (params.sido) qs.set('sido', params.sido);
+  if (params.status) qs.set('status', params.status);
+  if (params.houseType) qs.set('houseType', params.houseType);
+  if (params.q) qs.set('q', params.q);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.size) qs.set('size', String(params.size));
+  return get<PresaleListResult>(`/api/presales?${qs.toString()}`, 300);
+}
+
+export function fetchPresaleDetail(id: string) {
+  return get<PresaleDetail>(`/api/presales/${encodeURIComponent(id)}`, 300);
 }

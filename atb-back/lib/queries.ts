@@ -747,3 +747,306 @@ export async function siteSummary(): Promise<SiteSummary> {
         lastMonth: ym(r?.last_date ?? null),
     };
 }
+
+/* ── 분양 공고 ─────────────────────────────────────────────────────────────
+ * 아직 수집기가 없어 데이터는 0건이다. 화면과 API 가 먼저 서 있어야
+ * 수집을 붙일 때 매핑만 하면 되고, 빈 상태도 미리 확인할 수 있다.
+ */
+
+/** 공고 진행 상태. 날짜로 파생하므로 DB 에 저장하지 않는다(매일 바뀐다). */
+export type PresaleStatus = 'upcoming' | 'open' | 'closed' | 'unknown';
+
+export interface PresaleRow {
+    houseManageNo: string;
+    pblancNo: string;
+    /** 목록·상세 URL 에 쓰는 합성 id */
+    id: string;
+    houseNm: string;
+    houseType: string | null;      // APT / 오피스텔 ...
+    rentType: string | null;       // 분양주택 / 임대주택
+    sido: string | null;
+    sgg: string | null;
+    sggCd: number | null;
+    addr: string | null;
+    totalHouseholds: number | null;
+    noticeDate: string | null;
+    rceptBgnde: string | null;
+    rceptEndde: string | null;
+    winnerDate: string | null;
+    moveinYm: string | null;
+    developer: string | null;
+    builder: string | null;
+    status: PresaleStatus;
+    isFeatured: boolean;
+    /** 최저~최고 분양가 (만원). 주택형이 없으면 null */
+    minAmount: number | null;
+    maxAmount: number | null;
+}
+
+interface RawPresale {
+    house_manage_no: string;
+    pblanc_no: string;
+    house_nm: string;
+    house_secd_nm: string | null;
+    rent_secd_nm: string | null;
+    sido_nm: string | null;
+    sgg_nm: string | null;
+    sgg_cd: number | null;
+    addr: string | null;
+    total_households: number | null;
+    notice_date: Date | string | null;
+    rcept_bgnde: Date | string | null;
+    rcept_endde: Date | string | null;
+    winner_date: Date | string | null;
+    movein_ym: string | null;
+    developer: string | null;
+    builder: string | null;
+    is_featured: number;
+    min_amount: number | null;
+    max_amount: number | null;
+}
+
+/** 오늘 기준 접수 상태. 날짜가 없으면 판단하지 않는다(추측하지 않는다). */
+function presaleStatus(bgn: string | null, end: string | null): PresaleStatus {
+    if (!bgn && !end) return 'unknown';
+    const today = toDateString(new Date()) as string;
+    if (bgn && today < bgn) return 'upcoming';
+    if (end && today > end) return 'closed';
+    return 'open';
+}
+
+function mapPresale(r: RawPresale): PresaleRow {
+    const rceptBgnde = toDateString(r.rcept_bgnde);
+    const rceptEndde = toDateString(r.rcept_endde);
+
+    return {
+        houseManageNo: r.house_manage_no,
+        pblancNo: r.pblanc_no,
+        id: `${r.house_manage_no}-${r.pblanc_no}`,
+        houseNm: r.house_nm,
+        houseType: r.house_secd_nm,
+        rentType: r.rent_secd_nm,
+        sido: r.sido_nm,
+        sgg: r.sgg_nm,
+        sggCd: r.sgg_cd,
+        addr: r.addr,
+        totalHouseholds: r.total_households,
+        noticeDate: toDateString(r.notice_date),
+        rceptBgnde,
+        rceptEndde,
+        winnerDate: toDateString(r.winner_date),
+        moveinYm: r.movein_ym,
+        developer: r.developer,
+        builder: r.builder,
+        status: presaleStatus(rceptBgnde, rceptEndde),
+        isFeatured: Boolean(r.is_featured),
+        minAmount: r.min_amount === null ? null : Number(r.min_amount),
+        maxAmount: r.max_amount === null ? null : Number(r.max_amount),
+    };
+}
+
+const PRESALE_SELECT = `
+    SELECT n.house_manage_no, n.pblanc_no, n.house_nm, n.house_secd_nm,
+           n.rent_secd_nm, n.sido_nm, n.sgg_nm, n.sgg_cd, n.addr,
+           n.total_households, n.notice_date, n.rcept_bgnde, n.rcept_endde,
+           n.winner_date, n.movein_ym, n.developer, n.builder, n.is_featured,
+           MIN(t.top_amount) AS min_amount,
+           MAX(t.top_amount) AS max_amount
+      FROM presale_notices n
+      LEFT JOIN presale_types t
+        ON t.house_manage_no = n.house_manage_no AND t.pblanc_no = n.pblanc_no`;
+
+export interface PresaleListResult {
+    items: PresaleRow[];
+    total: number;
+    page: number;
+    size: number;
+}
+
+/**
+ * 분양 공고 목록.
+ *
+ * status 는 날짜 파생이라 SQL 에서 직접 거른다(저장 컬럼이 없다).
+ * 정렬은 노출 제어(is_featured, sort_weight)를 먼저 보고 그다음 일정 순이다 —
+ * 광고 상품이 붙는 자리라 수집 순서가 노출 순서를 결정하면 안 된다.
+ */
+export async function listPresales(opts: {
+    sido?: string;
+    sggCd?: string;
+    status?: PresaleStatus;
+    houseType?: string;
+    q?: string;
+    page?: number;
+    size?: number;
+}): Promise<PresaleListResult> {
+    const page = Math.max(opts.page ?? 1, 1);
+    const size = Math.min(Math.max(opts.size ?? 20, 1), 100);
+    const offset = (page - 1) * size;
+
+    const params: unknown[] = [];
+    let where = 'WHERE n.is_hidden = 0';
+
+    if (opts.sido) {
+        const fulls = toFullSido(opts.sido);
+        if (fulls.length > 0) {
+            where += ` AND n.sido_nm IN (${fulls.map(() => '?').join(',')})`;
+            params.push(...fulls);
+        } else {
+            where += ' AND n.sido_nm = ?';
+            params.push(opts.sido);
+        }
+    }
+    if (opts.sggCd) {
+        where += ' AND n.sgg_cd = ?';
+        params.push(Number(opts.sggCd));
+    }
+    if (opts.houseType) {
+        where += ' AND n.house_secd_nm = ?';
+        params.push(opts.houseType);
+    }
+    if (opts.q) {
+        where += ' AND n.house_nm LIKE ?';
+        params.push(`%${opts.q}%`);
+    }
+    if (opts.status === 'open') {
+        where += ' AND n.rcept_bgnde <= CURDATE() AND n.rcept_endde >= CURDATE()';
+    } else if (opts.status === 'upcoming') {
+        where += ' AND n.rcept_bgnde > CURDATE()';
+    } else if (opts.status === 'closed') {
+        where += ' AND n.rcept_endde < CURDATE()';
+    }
+
+    const countRows = (await query(
+        `SELECT COUNT(*) AS cnt FROM presale_notices n ${where}`,
+        params,
+    )) as Array<{ cnt: number }>;
+
+    const rows = (await query(
+        `${PRESALE_SELECT}
+         ${where}
+         GROUP BY n.house_manage_no, n.pblanc_no
+         ORDER BY n.is_featured DESC, n.sort_weight DESC,
+                  n.rcept_bgnde IS NULL, n.rcept_bgnde DESC, n.notice_date DESC
+         LIMIT ${size} OFFSET ${offset}`,
+        params,
+    )) as RawPresale[];
+
+    return {
+        items: rows.map(mapPresale),
+        total: Number(countRows[0]?.cnt ?? 0),
+        page,
+        size,
+    };
+}
+
+export interface PresaleTypeRow {
+    modelNo: string;
+    houseTy: string | null;
+    excluAr: number | null;
+    supplyAr: number | null;
+    generalHshldco: number | null;
+    specialHshldco: number | null;
+    topAmount: number | null;
+}
+
+export interface PresaleDetail extends PresaleRow {
+    subscrptAreaNm: string | null;
+    spsplyBgnde: string | null;
+    spsplyEndde: string | null;
+    contractBgnde: string | null;
+    contractEndde: string | null;
+    tel: string | null;
+    homepage: string | null;
+    pblancUrl: string | null;
+    specltRdnEarthAt: string | null;
+    mdatTrgetAreaAt: string | null;
+    parcprcUlsAt: string | null;
+    lat: number | null;
+    lng: number | null;
+    types: PresaleTypeRow[];
+}
+
+/** 분양 공고 상세. id 는 '주택관리번호-공고번호'. */
+export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
+    const sep = id.lastIndexOf('-');
+    if (sep <= 0) return null;
+    const houseManageNo = id.slice(0, sep);
+    const pblancNo = id.slice(sep + 1);
+
+    const rows = (await query(
+        `${PRESALE_SELECT}
+          WHERE n.house_manage_no = ? AND n.pblanc_no = ? AND n.is_hidden = 0
+          GROUP BY n.house_manage_no, n.pblanc_no`,
+        [houseManageNo, pblancNo],
+    )) as RawPresale[];
+
+    if (rows.length === 0) return null;
+
+    const extraRows = (await query(
+        `SELECT subscrpt_area_nm, spsply_bgnde, spsply_endde, contract_bgnde,
+                contract_endde, tel, homepage, pblanc_url, speclt_rdn_earth_at,
+                mdat_trget_area_at, parcprc_uls_at, lat, lng
+           FROM presale_notices
+          WHERE house_manage_no = ? AND pblanc_no = ?`,
+        [houseManageNo, pblancNo],
+    )) as Array<Record<string, any>>;
+    const e = extraRows[0] ?? {};
+
+    const typeRows = (await query(
+        `SELECT model_no, house_ty, exclu_ar, supply_ar,
+                general_hshldco, special_hshldco, top_amount
+           FROM presale_types
+          WHERE house_manage_no = ? AND pblanc_no = ?
+          ORDER BY exclu_ar, model_no`,
+        [houseManageNo, pblancNo],
+    )) as Array<Record<string, any>>;
+
+    return {
+        ...mapPresale(rows[0]),
+        subscrptAreaNm: e.subscrpt_area_nm ?? null,
+        spsplyBgnde: toDateString(e.spsply_bgnde ?? null),
+        spsplyEndde: toDateString(e.spsply_endde ?? null),
+        contractBgnde: toDateString(e.contract_bgnde ?? null),
+        contractEndde: toDateString(e.contract_endde ?? null),
+        tel: e.tel ?? null,
+        homepage: e.homepage ?? null,
+        pblancUrl: e.pblanc_url ?? null,
+        specltRdnEarthAt: e.speclt_rdn_earth_at ?? null,
+        mdatTrgetAreaAt: e.mdat_trget_area_at ?? null,
+        parcprcUlsAt: e.parcprc_uls_at ?? null,
+        lat: e.lat == null ? null : Number(e.lat),
+        lng: e.lng == null ? null : Number(e.lng),
+        types: typeRows.map((t) => ({
+            modelNo: t.model_no,
+            houseTy: t.house_ty ?? null,
+            excluAr: t.exclu_ar == null ? null : Number(t.exclu_ar),
+            supplyAr: t.supply_ar == null ? null : Number(t.supply_ar),
+            generalHshldco: t.general_hshldco ?? null,
+            specialHshldco: t.special_hshldco ?? null,
+            topAmount: t.top_amount ?? null,
+        })),
+    };
+}
+
+/** 분양 화면 상단 요약 — 접수중/예정 건수. 데이터가 0건이어도 동작한다. */
+export async function presaleSummary(): Promise<{
+    open: number;
+    upcoming: number;
+    total: number;
+}> {
+    const rows = (await query(
+        `SELECT
+           SUM(rcept_bgnde <= CURDATE() AND rcept_endde >= CURDATE()) AS open_cnt,
+           SUM(rcept_bgnde > CURDATE())                               AS upcoming_cnt,
+           COUNT(*)                                                   AS total_cnt
+         FROM presale_notices
+        WHERE is_hidden = 0`,
+    )) as Array<{ open_cnt: number | null; upcoming_cnt: number | null; total_cnt: number }>;
+
+    const r = rows[0];
+    return {
+        open: Number(r?.open_cnt ?? 0),
+        upcoming: Number(r?.upcoming_cnt ?? 0),
+        total: Number(r?.total_cnt ?? 0),
+    };
+}

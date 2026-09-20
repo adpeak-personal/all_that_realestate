@@ -471,3 +471,110 @@ CREATE TABLE IF NOT EXISTS `apartment_deals` (
     REFERENCES `apartments` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='아파트 매매 실거래가';
+
+
+-- ── 4. 분양 공고 ──────────────────────────────────────────────────────────
+--   출처: 한국부동산원 청약홈 분양정보 조회 서비스 (공공데이터포털 15098547)
+--         + 직접 등록(source='manual') — 청약홈에 없는 현장도 싣는다.
+--
+--   청약홈은 공고 유형마다 날짜 필드명이 다르다.
+--     · APT            : RCEPT_BGNDE / RCEPT_ENDDE + 순위별 접수일
+--     · 오피스텔·무순위 : SUBSCRPT_RCEPT_BGNDE / SUBSCRPT_RCEPT_ENDDE
+--   여기서는 rcept_bgnde / rcept_endde 로 정규화해 담고, 원본 응답은 raw 에
+--   통째로 남긴다. 필드가 추가·변경돼도 재수집 없이 다시 매핑할 수 있다.
+CREATE TABLE IF NOT EXISTS `presale_notices` (
+  `house_manage_no`  VARCHAR(20)  NOT NULL COMMENT '주택관리번호 (청약홈 PK 1/2)',
+  `pblanc_no`        VARCHAR(20)  NOT NULL COMMENT '공고번호 (청약홈 PK 2/2)',
+
+  `source`           VARCHAR(20)  NOT NULL DEFAULT 'applyhome'
+     COMMENT '출처: applyhome(청약홈) / manual(직접등록)',
+
+  -- 기본
+  `house_nm`         VARCHAR(200) NOT NULL COMMENT '주택명 (HOUSE_NM)',
+  `house_secd`       VARCHAR(10)  DEFAULT NULL COMMENT '주택구분코드 (HOUSE_SECD)',
+  `house_secd_nm`    VARCHAR(40)  DEFAULT NULL COMMENT 'APT / 오피스텔 / 도시형 등',
+  `house_dtl_secd_nm` VARCHAR(40) DEFAULT NULL COMMENT '민영/국민/신혼희망타운 등',
+  `rent_secd_nm`     VARCHAR(20)  DEFAULT NULL COMMENT '분양주택 / 임대주택',
+
+  -- 위치. sgg_cd 는 실거래·단지와 이어붙이기 위한 매칭키(채워지면).
+  `subscrpt_area_nm` VARCHAR(40)  DEFAULT NULL COMMENT '공급지역명 (원본)',
+  `sido_nm`          VARCHAR(40)  DEFAULT NULL COMMENT '시도 (정규화)',
+  `sgg_nm`           VARCHAR(40)  DEFAULT NULL COMMENT '시군구 (정규화)',
+  `sgg_cd`           INT          DEFAULT NULL COMMENT 'sgg_codes.sgg_cd (미매칭 시 NULL)',
+  `addr`             VARCHAR(300) DEFAULT NULL COMMENT '공급위치 (HSSPLY_ADRES)',
+  `lat`              DECIMAL(10,7) DEFAULT NULL COMMENT '위도 (지오코딩)',
+  `lng`              DECIMAL(10,7) DEFAULT NULL COMMENT '경도 (지오코딩)',
+
+  `total_households` INT          DEFAULT NULL COMMENT '총 공급세대수',
+
+  -- 일정
+  `notice_date`      DATE         DEFAULT NULL COMMENT '모집공고일',
+  `rcept_bgnde`      DATE         DEFAULT NULL COMMENT '청약접수 시작 (유형별 필드를 정규화)',
+  `rcept_endde`      DATE         DEFAULT NULL COMMENT '청약접수 종료',
+  `spsply_bgnde`     DATE         DEFAULT NULL COMMENT '특별공급 접수 시작',
+  `spsply_endde`     DATE         DEFAULT NULL COMMENT '특별공급 접수 종료',
+  `winner_date`      DATE         DEFAULT NULL COMMENT '당첨자발표일',
+  `contract_bgnde`   DATE         DEFAULT NULL COMMENT '계약 시작일',
+  `contract_endde`   DATE         DEFAULT NULL COMMENT '계약 종료일',
+  `movein_ym`        CHAR(6)      DEFAULT NULL COMMENT '입주예정월 YYYYMM',
+
+  -- 주체 / 연락
+  `developer`        VARCHAR(200) DEFAULT NULL COMMENT '사업주체 (시행사)',
+  `builder`          VARCHAR(200) DEFAULT NULL COMMENT '건설업체 (시공사)',
+  `tel`              VARCHAR(40)  DEFAULT NULL COMMENT '문의처',
+  `homepage`         VARCHAR(300) DEFAULT NULL COMMENT '홈페이지',
+  `pblanc_url`       VARCHAR(500) DEFAULT NULL COMMENT '청약홈 공고 URL',
+
+  -- 규제
+  `speclt_rdn_earth_at` CHAR(1)   DEFAULT NULL COMMENT '투기과열지구 Y/N',
+  `mdat_trget_area_at`  CHAR(1)   DEFAULT NULL COMMENT '조정대상지역 Y/N',
+  `parcprc_uls_at`      CHAR(1)   DEFAULT NULL COMMENT '분양가상한제 Y/N',
+
+  -- 노출 제어. 광고 상품이 붙는 자리라 수집 데이터와 분리해 둔다.
+  `is_featured`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '메인 노출',
+  `sort_weight`      INT          NOT NULL DEFAULT 0 COMMENT '수동 정렬 가중치 (클수록 앞)',
+  `is_hidden`        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '숨김',
+
+  `raw`              JSON         DEFAULT NULL COMMENT '원본 응답 (필드 변경 대비)',
+  `synced_at`        TIMESTAMP    NULL DEFAULT NULL,
+  `created_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`house_manage_no`, `pblanc_no`),
+  KEY `idx_rcept`     (`rcept_bgnde`, `rcept_endde`),
+  KEY `idx_notice`    (`notice_date`),
+  KEY `idx_sgg`       (`sgg_cd`),
+  KEY `idx_sido`      (`sido_nm`),
+  KEY `idx_featured`  (`is_featured`, `sort_weight`),
+  KEY `idx_house_nm`  (`house_nm`(50))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='분양 공고 (청약홈 + 직접등록)';
+
+
+-- ── 5. 분양 주택형 ────────────────────────────────────────────────────────
+--   청약홈 'APT 주택형별 분양정보'. 공고 상세에는 전용면적이 없어 여기서 받는다.
+CREATE TABLE IF NOT EXISTS `presale_types` (
+  `house_manage_no`  VARCHAR(20)  NOT NULL,
+  `pblanc_no`        VARCHAR(20)  NOT NULL,
+  `model_no`         VARCHAR(10)  NOT NULL COMMENT '모델번호 (MODEL_NO)',
+
+  `house_ty`         VARCHAR(40)  DEFAULT NULL COMMENT '주택형 (예: 084.9812A)',
+  `exclu_ar`         DECIMAL(9,4) DEFAULT NULL COMMENT '전용면적 ㎡ (주택형에서 파싱)',
+  `supply_ar`        DECIMAL(9,4) DEFAULT NULL COMMENT '주택공급면적 ㎡',
+  `general_hshldco`  INT          DEFAULT NULL COMMENT '일반공급 세대수',
+  `special_hshldco`  INT          DEFAULT NULL COMMENT '특별공급 세대수',
+  `top_amount`       INT          DEFAULT NULL COMMENT '공급금액(분양최고금액, 만원)',
+
+  `raw`              JSON         DEFAULT NULL,
+  `created_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`house_manage_no`, `pblanc_no`, `model_no`),
+  KEY `idx_exclu_ar` (`exclu_ar`),
+
+  CONSTRAINT `fk_type_notice`
+    FOREIGN KEY (`house_manage_no`, `pblanc_no`)
+    REFERENCES `presale_notices` (`house_manage_no`, `pblanc_no`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='분양 주택형별 공급 정보';

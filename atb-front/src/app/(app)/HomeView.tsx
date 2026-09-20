@@ -4,10 +4,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import PriceTrendChart from '../../components/PriceTrendChart';
+import { PresaleCard, PresaleEmpty } from './presale/PresaleUI';
 import { formatDate, formatPrice, formatYearMonth, toPyeong } from '../../lib/format';
 import type {
   AptListRow,
   Deal,
+  PresaleRow,
+  PresaleSummary,
   RegionStat,
   RegionStatsResult,
   SiteSummary,
@@ -345,20 +348,78 @@ function RecentDeals({ items }: { items: Deal[] }) {
   );
 }
 
+/* ── 분양정보 ─────────────────────────────────────────────────────────────── */
+
+function PresaleSection({
+  items,
+  summary,
+}: {
+  items: PresaleRow[];
+  summary?: PresaleSummary;
+}) {
+  return (
+    <section className="bg-sale-50 border-y border-sale-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12">
+        <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+          <div>
+            <p className="text-sm font-bold text-sale-600">ALL THAT 분양</p>
+            <h2 className="text-2xl font-bold text-slate-900 tracking-tight mt-1">
+              지금 청약 가능한 분양
+            </h2>
+            <p className="text-slate-500 mt-1.5">
+              {summary && summary.total > 0
+                ? `접수중 ${summary.open}건 · 접수예정 ${summary.upcoming}건`
+                : '전국 아파트·오피스텔 분양 공고'}
+            </p>
+          </div>
+          <Link
+            href="/presale"
+            className="rounded-xl px-5 py-2.5 font-semibold bg-sale-600 hover:bg-sale-700 text-white transition-colors"
+          >
+            분양정보 전체보기
+          </Link>
+        </div>
+
+        {items.length === 0 ? (
+          <PresaleEmpty compact />
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {items.map((it) => (
+              <PresaleCard key={it.id} item={it} />
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 /* ── Page ─────────────────────────────────────────────────────────────────── */
 
 interface ViewProps {
   summary?: SiteSummary;
+  presales: PresaleRow[];
+  presaleSummary?: PresaleSummary;
   stats?: RegionStatsResult;
   trend?: TrendResult;
   recent: Deal[];
   popular: AptListRow[];
 }
 
-export default function HomeView({ summary, stats, trend, recent, popular }: ViewProps) {
+export default function HomeView({
+  summary,
+  stats,
+  trend,
+  recent,
+  popular,
+  presales,
+  presaleSummary,
+}: ViewProps) {
   return (
     <div className="bg-slate-50">
       <Hero summary={summary} baseMonth={stats?.baseMonth ?? null} />
+
+      <PresaleSection items={presales} summary={presaleSummary} />
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-12 space-y-10 sm:space-y-12">
         <MonthlyKpi stats={stats} />

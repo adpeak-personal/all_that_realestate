@@ -21,7 +21,13 @@ export default function MainLayout({
                             올댓부동산
                         </span>
                     </Link>
-                    <nav className="flex items-center gap-6">
+                    <nav className="flex items-center gap-5 sm:gap-6">
+                        <Link
+                            href="/presale"
+                            className="text-sm font-bold text-sale-700 hover:text-sale-600 transition-colors"
+                        >
+                            분양정보
+                        </Link>
                         <Link
                             href="/"
                             className="text-sm font-medium text-slate-700 hover:text-brand-700 transition-colors"
@@ -52,6 +58,7 @@ export default function MainLayout({
                             <p className="font-semibold text-white">데이터 출처</p>
                             <p>국토교통부 아파트 매매 실거래가</p>
                             <p>공동주택관리정보시스템(K-apt) 단지 정보</p>
+                            <p>한국부동산원 청약홈 분양정보</p>
                         </div>
                     </div>
                 </div>
