@@ -64,19 +64,26 @@ function StatBox({ label, value, unit }: { label: string; value: string; unit: s
   );
 }
 
+/** ±0.5% 미만은 '보합'. 화살표로 강조하면 없는 방향성을 만들어낸다. */
+const FLAT = 0.5;
+
 function TrendBox({ trend }: { trend: number | null }) {
+  const flat = trend !== null && Math.abs(trend) < FLAT;
+
   return (
     <div className="bg-slate-50 rounded-xl p-3 text-center flex flex-col justify-center">
       <p className="text-xs text-slate-500 mb-1">전월 대비</p>
       {trend === null ? (
         <p className="text-xl font-bold leading-tight text-slate-300">–</p>
+      ) : flat ? (
+        <p className="text-xl font-bold leading-tight text-slate-500">보합</p>
       ) : (
         <p
           className={`text-xl font-bold leading-tight ${
-            trend >= 0 ? 'text-red-500' : 'text-blue-500'
+            trend > 0 ? 'text-red-500' : 'text-blue-500'
           }`}
         >
-          {trend >= 0 ? '▲' : '▼'}
+          {trend > 0 ? '▲' : '▼'}
           {Math.abs(trend)}%
         </p>
       )}
@@ -269,9 +276,18 @@ export default function HomeView({ initialStats, initialDeals, initialTrend }: V
 
                   {/* Recent transactions for this region */}
                   <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6">
-                    <p className="text-sm font-semibold text-slate-700 mb-3">
-                      {shortSelected} 최근 거래
-                    </p>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-sm font-semibold text-slate-700">
+                        {shortSelected} 최근 거래
+                      </p>
+                      {/* 지도에서 지역을 고른 다음 갈 곳이 없으면 흐름이 끊긴다 */}
+                      <Link
+                        href={`/apt?sido=${encodeURIComponent(shortSelected)}`}
+                        className="text-xs font-semibold text-indigo-600 hover:text-indigo-500"
+                      >
+                        단지 전체 보기 →
+                      </Link>
+                    </div>
                     {loadingDeals ? (
                       <p className="text-sm text-slate-400 text-center py-5">불러오는 중…</p>
                     ) : regionDeals.length > 0 ? (
@@ -352,7 +368,9 @@ export default function HomeView({ initialStats, initialDeals, initialTrend }: V
                           <p className="text-2xl font-bold">
                             {national.trend === null
                               ? '–'
-                              : `${national.trend >= 0 ? '▲' : '▼'} ${Math.abs(national.trend)}%`}
+                              : Math.abs(national.trend) < FLAT
+                                ? '보합'
+                                : `${national.trend > 0 ? '▲' : '▼'} ${Math.abs(national.trend)}%`}
                           </p>
                           <p className="text-xs opacity-60 mt-0.5">전월 대비 ㎡당</p>
                         </div>
@@ -369,18 +387,17 @@ export default function HomeView({ initialStats, initialDeals, initialTrend }: V
               )}
             </div>
           </div>
-        </div>
-      </section>
 
-      {/* ── 시세 추이 ── */}
-      <section className="pb-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <PriceTrendChart
-            items={trendQuery.data?.items ?? []}
-            loading={trendQuery.isLoading}
-            title={`${shortSelected ?? '전국'} ㎡당 단가 추이`}
-            subtitle="최근 12개월 평균. 평균 거래금액이 아니라 면적당 단가라 평형 구성에 덜 흔들립니다."
-          />
+          {/* 지도·통계와 같은 지역을 보는 차트라 같은 섹션에 둔다.
+              떨어뜨려 놓으면 지역을 바꿨을 때 무엇이 함께 바뀌는지 안 보인다. */}
+          <div className="mt-6">
+            <PriceTrendChart
+              items={trendQuery.data?.items ?? []}
+              loading={trendQuery.isLoading}
+              title={`${shortSelected ?? '전국'} ㎡당 단가 추이`}
+              subtitle="최근 12개월 평균. 평균 거래금액이 아니라 면적당 단가라 평형 구성에 덜 흔들립니다."
+            />
+          </div>
         </div>
       </section>
 

@@ -113,3 +113,42 @@ export interface TrendParams {
   aptId?: number;
   months?: number;
 }
+
+/** 시도 안의 시군구 요약 (드릴다운용) */
+export interface SggBreakdownItem {
+  code: string;
+  sgg: string;
+  apts: number;
+  deals: number;
+  unitPrice: number | null;
+}
+
+export interface SggBreakdownResult {
+  items: SggBreakdownItem[];
+  total: number;
+}
+
+export type AptSort = 'deals' | 'price_desc' | 'price_asc' | 'name' | 'households' | 'recent';
+
+/** 지역별 단지 목록의 한 행 */
+export interface AptListRow {
+  id: number;
+  aptNm: string;
+  sido: string;
+  sgg: string;
+  umdNm: string;
+  buildYear: number | null;
+  households: number | null;
+  dealCount: number;
+  unitPrice: number | null;
+  lastDealDate: string | null;
+  lastDealAmount: number | null;
+  lastDealArea: number | null;
+}
+
+export interface AptListResult {
+  items: AptListRow[];
+  total: number;
+  page: number;
+  size: number;
+}

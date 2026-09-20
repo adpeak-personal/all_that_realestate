@@ -10,6 +10,9 @@
  */
 import type {
   AptDetail,
+  AptListResult,
+  AptSort,
+  SggBreakdownResult,
   DealListResult,
   RecentDealsResult,
   RegionStatsResult,
@@ -74,4 +77,28 @@ export function fetchAptSitemap(limit = 50000) {
     `/api/sitemap/apts?limit=${limit}`,
     60 * 60,
   );
+}
+
+/** 시도 안의 시군구 요약 */
+export function fetchSggBreakdown(sido: string) {
+  return get<SggBreakdownResult>(`/api/sgg/breakdown?sido=${encodeURIComponent(sido)}`);
+}
+
+/** 지역별 단지 목록 */
+export function fetchApts(params: {
+  sggCd?: string;
+  sido?: string;
+  q?: string;
+  sort?: AptSort;
+  page?: number;
+  size?: number;
+}) {
+  const qs = new URLSearchParams();
+  if (params.sggCd) qs.set('sggCd', params.sggCd);
+  if (params.sido) qs.set('sido', params.sido);
+  if (params.q) qs.set('q', params.q);
+  if (params.sort) qs.set('sort', params.sort);
+  if (params.page) qs.set('page', String(params.page));
+  if (params.size) qs.set('size', String(params.size));
+  return get<AptListResult>(`/api/apts?${qs.toString()}`);
 }

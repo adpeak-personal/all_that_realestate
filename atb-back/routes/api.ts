@@ -8,7 +8,10 @@ import {
     aptDetail,
     priceTrend,
     aptSitemapEntries,
+    sggBreakdown,
+    listApts,
 } from '../lib/queries';
+import type { AptSort } from '../lib/queries';
 
 // 이 서버는 조회 전용이다.
 // 공공API 수집 / K-apt 동기화 / 매칭 / 이미지 검수는 atb-program(Python) 담당.
@@ -128,6 +131,53 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             fastify.log.error(err);
             reply.status(500);
             return { error: '시세 추이 조회 실패' };
+        }
+    });
+
+    /** 시도 안의 시군구 요약 — GET /api/sgg/breakdown?sido=서울 */
+    fastify.get('/sgg/breakdown', async (request, reply) => {
+        const { sido } = request.query as { sido?: string };
+        if (!sido) {
+            reply.status(400);
+            return { error: 'sido(시도 단축명)는 필수입니다.' };
+        }
+        try {
+            const items = await sggBreakdown(sido);
+            return { items, total: items.length };
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '시군구 요약 조회 실패' };
+        }
+    });
+
+    /**
+     * 지역별 단지 목록 — GET /api/apts?sggCd=11680&sort=deals&page=1&size=30
+     * sggCd 또는 sido 로 범위를 잡는다. 둘 다 없으면 전국.
+     */
+    fastify.get('/apts', async (request, reply) => {
+        const { sggCd, sido, q, sort, page, size } = request.query as {
+            sggCd?: string;
+            sido?: string;
+            q?: string;
+            sort?: string;
+            page?: string;
+            size?: string;
+        };
+
+        try {
+            return await listApts({
+                sggCd,
+                sido,
+                q,
+                sort: sort as AptSort | undefined,
+                page: page ? Number(page) : undefined,
+                size: size ? Number(size) : undefined,
+            });
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '단지 목록 조회 실패' };
         }
     });
 

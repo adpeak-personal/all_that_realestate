@@ -168,22 +168,49 @@ function mapDeal(r: RawDeal): DealRow {
     };
 }
 
-/** 메인 화면용 — 최신 거래 N건. sido(단축명) 로 지역 한정 가능. */
+/**
+ * 메인 화면용 — 최신 거래 N건. sido(단축명) 로 지역 한정 가능.
+ *
+ * 지역을 지정하지 않으면 시도별로 1건씩 골라 섞는다.
+ * 그냥 deal_date DESC, id DESC 로 뽑으면 마지막에 수집된 지역이 id 가 가장 커서
+ * 전국 화면인데 한 지역이 8칸을 독차지한다(실제로 전부 전북이었다).
+ */
 export async function recentDeals(opts: { sido?: string; limit?: number }): Promise<DealRow[]> {
     const limit = Math.min(Math.max(opts.limit ?? 8, 1), 100);
-    const params: unknown[] = [];
-    let where = `WHERE ${NOT_CANCELED}`;
 
     if (opts.sido) {
         const fulls = toFullSido(opts.sido);
         if (fulls.length === 0) return [];
-        where += ` AND s.sido_nm IN (${fulls.map(() => '?').join(',')})`;
-        params.push(...fulls);
+
+        const rows = (await query(
+            `${DEAL_SELECT}
+              WHERE ${NOT_CANCELED}
+                AND s.sido_nm IN (${fulls.map(() => '?').join(',')})
+              ORDER BY d.deal_date DESC, d.id DESC
+              LIMIT ${limit}`,
+            fulls,
+        )) as RawDeal[];
+        return rows.map(mapDeal);
     }
 
+    // 전국: 시도별 최신 1건씩 → 거래일 내림차순
     const rows = (await query(
-        `${DEAL_SELECT} ${where} ORDER BY d.deal_date DESC, d.id DESC LIMIT ${limit}`,
-        params,
+        `SELECT t.* FROM (
+           SELECT d.id, d.apt_id, s.sido_nm, s.sgg_nm, d.umd_nm, d.apt_nm,
+                  d.exclu_use_ar, d.floor, d.deal_amount, d.deal_date,
+                  d.build_year, d.dealing_gbn, a.thumbnail_url,
+                  ROW_NUMBER() OVER (
+                    PARTITION BY s.sido_nm ORDER BY d.deal_date DESC, d.id DESC
+                  ) AS rn
+             FROM apartment_deals d
+             JOIN sgg_codes s ON s.sgg_cd = d.sgg_cd
+             LEFT JOIN apartments a ON a.id = d.apt_id
+            WHERE ${NOT_CANCELED}
+              AND d.deal_date >= (SELECT MAX(deal_date) FROM apartment_deals) - INTERVAL 14 DAY
+         ) t
+          WHERE t.rn = 1
+          ORDER BY t.deal_date DESC, t.id DESC
+          LIMIT ${limit}`,
     )) as RawDeal[];
 
     return rows.map(mapDeal);
@@ -488,4 +515,191 @@ export async function aptSitemapEntries(limit = 50000): Promise<
     )) as Array<{ id: number; last_deal: Date | string | null }>;
 
     return rows.map((r) => ({ id: r.id, lastModified: toDateString(r.last_deal) }));
+}
+
+/** 시군구 단위 요약 — 시도를 고른 뒤 '어느 구로 갈지' 고르는 화면용. */
+export async function sggBreakdown(sido: string): Promise<
+    Array<{ code: string; sgg: string; apts: number; deals: number; unitPrice: number | null }>
+> {
+    const fulls = toFullSido(sido);
+    if (fulls.length === 0) return [];
+
+    const rows = (await query(
+        `SELECT s.sgg_cd, s.sgg_nm,
+                COUNT(DISTINCT d.apt_id) AS apts,
+                COUNT(*)                 AS deals,
+                AVG(d.deal_amount / d.exclu_use_ar) AS unit_price
+           FROM apartment_deals d
+           JOIN sgg_codes s ON s.sgg_cd = d.sgg_cd
+          WHERE ${NOT_CANCELED}
+            AND s.sido_nm IN (${fulls.map(() => '?').join(',')})
+          GROUP BY s.sgg_cd, s.sgg_nm
+          ORDER BY deals DESC`,
+        fulls,
+    )) as Array<{
+        sgg_cd: number;
+        sgg_nm: string;
+        apts: number;
+        deals: number;
+        unit_price: string | null;
+    }>;
+
+    return rows.map((r) => ({
+        code: String(r.sgg_cd),
+        sgg: r.sgg_nm,
+        apts: Number(r.apts),
+        deals: Number(r.deals),
+        unitPrice: r.unit_price === null ? null : Math.round(Number(r.unit_price)),
+    }));
+}
+
+export type AptSort = 'deals' | 'price_desc' | 'price_asc' | 'name' | 'households' | 'recent';
+
+/** 정렬 키 → ORDER BY. 사용자 입력을 SQL 에 직접 붙이지 않기 위한 화이트리스트. */
+const APT_ORDER: Record<AptSort, string> = {
+    deals: 'deal_count DESC, a.apt_nm',
+    // 금액 정렬은 ㎡당 단가로 한다. 거래금액 자체로 줄세우면 큰 평형이 많은
+    // 단지가 무조건 위로 올라와 '비싼 동네'가 아니라 '큰 집'을 보여주게 된다.
+    price_desc: 'unit_price DESC, a.apt_nm',
+    price_asc: 'unit_price ASC, a.apt_nm',
+    name: 'a.apt_nm ASC',
+    households: 'households DESC, a.apt_nm',
+    recent: 'last_deal DESC, a.apt_nm',
+};
+
+export interface AptListRow {
+    id: number;
+    aptNm: string;
+    sido: string;
+    sgg: string;
+    umdNm: string;
+    buildYear: number | null;
+    households: number | null;
+    dealCount: number;
+    unitPrice: number | null;   // ㎡당 평균 단가 (만원)
+    lastDealDate: string | null;
+    lastDealAmount: number | null;
+    lastDealArea: number | null;
+}
+
+export interface AptListResult {
+    items: AptListRow[];
+    total: number;
+    page: number;
+    size: number;
+}
+
+/** 지역별 단지 목록. 시군구(sggCd) 또는 시도(sido) 로 범위를 잡는다. */
+export async function listApts(opts: {
+    sggCd?: string;
+    sido?: string;
+    q?: string;
+    sort?: AptSort;
+    page?: number;
+    size?: number;
+}): Promise<AptListResult> {
+    const page = Math.max(opts.page ?? 1, 1);
+    const size = Math.min(Math.max(opts.size ?? 30, 1), 100);
+    const offset = (page - 1) * size;
+    const order = APT_ORDER[opts.sort ?? 'deals'] ?? APT_ORDER.deals;
+
+    const params: unknown[] = [];
+    let where = `WHERE ${NOT_CANCELED}`;
+
+    if (opts.sggCd) {
+        where += ' AND a.sgg_cd = ?';
+        params.push(Number(opts.sggCd));
+    } else if (opts.sido) {
+        const fulls = toFullSido(opts.sido);
+        if (fulls.length === 0) return { items: [], total: 0, page, size };
+        where += ` AND s.sido_nm IN (${fulls.map(() => '?').join(',')})`;
+        params.push(...fulls);
+    }
+    if (opts.q) {
+        where += ' AND a.apt_nm LIKE ?';
+        params.push(`%${opts.q}%`);
+    }
+
+    const base = `
+        FROM apartments a
+        JOIN sgg_codes s ON s.sgg_cd = a.sgg_cd
+        JOIN apartment_deals d ON d.apt_id = a.id
+        LEFT JOIN kapt_complexes k ON k.kapt_code = a.kapt_code
+        ${where}`;
+
+    const countRows = (await query(
+        `SELECT COUNT(*) AS cnt FROM (SELECT a.id ${base} GROUP BY a.id) t`,
+        params,
+    )) as Array<{ cnt: number }>;
+
+    const rows = (await query(
+        `SELECT a.id, a.apt_nm, a.umd_nm, a.build_year, s.sido_nm, s.sgg_nm,
+                k.total_households AS households,
+                COUNT(*)           AS deal_count,
+                AVG(d.deal_amount / d.exclu_use_ar) AS unit_price,
+                MAX(d.deal_date)   AS last_deal
+         ${base}
+         GROUP BY a.id
+         ORDER BY ${order}
+         LIMIT ${size} OFFSET ${offset}`,
+        params,
+    )) as Array<Record<string, any>>;
+
+    // 최근 거래 1건은 페이지에 실린 단지에 대해서만 따로 가져온다.
+    // 전체를 윈도우 함수로 훑으면 558,000 행을 매번 정렬하게 된다.
+    const ids = rows.map((r) => r.id as number);
+    const latest = new Map<number, { amount: number; area: number; date: string }>();
+
+    if (ids.length > 0) {
+        const lastRows = (await query(
+            `SELECT t.apt_id, t.deal_amount, t.exclu_use_ar, t.deal_date
+               FROM (
+                 SELECT d.apt_id, d.deal_amount, d.exclu_use_ar, d.deal_date,
+                        ROW_NUMBER() OVER (
+                          PARTITION BY d.apt_id ORDER BY d.deal_date DESC, d.id DESC
+                        ) AS rn
+                   FROM apartment_deals d
+                  WHERE d.apt_id IN (${ids.map(() => '?').join(',')})
+                    AND ${NOT_CANCELED}
+               ) t
+              WHERE t.rn = 1`,
+            ids,
+        )) as Array<{
+            apt_id: number;
+            deal_amount: number;
+            exclu_use_ar: string;
+            deal_date: Date | string;
+        }>;
+
+        for (const r of lastRows) {
+            latest.set(r.apt_id, {
+                amount: r.deal_amount,
+                area: Number(r.exclu_use_ar),
+                date: toDateString(r.deal_date) ?? '',
+            });
+        }
+    }
+
+    return {
+        items: rows.map((r) => {
+            const last = latest.get(r.id);
+            return {
+                id: r.id,
+                aptNm: r.apt_nm,
+                sido: toShortSido(r.sido_nm),
+                sgg: r.sgg_nm,
+                umdNm: r.umd_nm,
+                buildYear: r.build_year ?? null,
+                households: r.households ?? null,
+                dealCount: Number(r.deal_count),
+                unitPrice: r.unit_price === null ? null : Math.round(Number(r.unit_price)),
+                lastDealDate: last?.date ?? null,
+                lastDealAmount: last?.amount ?? null,
+                lastDealArea: last?.area ?? null,
+            };
+        }),
+        total: Number(countRows[0]?.cnt ?? 0),
+        page,
+        size,
+    };
 }
