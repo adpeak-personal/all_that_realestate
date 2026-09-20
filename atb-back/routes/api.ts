@@ -7,6 +7,7 @@ import {
     sggCodes,
     aptDetail,
     priceTrend,
+    aptSitemapEntries,
 } from '../lib/queries';
 
 // 이 서버는 조회 전용이다.
@@ -127,6 +128,19 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             fastify.log.error(err);
             reply.status(500);
             return { error: '시세 추이 조회 실패' };
+        }
+    });
+
+    /** 사이트맵용 단지 id 목록 — GET /api/sitemap/apts?limit=50000 */
+    fastify.get('/sitemap/apts', async (request, reply) => {
+        const { limit } = request.query as { limit?: string };
+        try {
+            const items = await aptSitemapEntries(limit ? Number(limit) : undefined);
+            return { items, total: items.length };
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '사이트맵 목록 조회 실패' };
         }
     });
 

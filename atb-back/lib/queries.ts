@@ -460,3 +460,26 @@ export async function priceTrend(opts: {
     const baseMonth = `${latest.year}${String(latest.month).padStart(2, '0')}`;
     return { baseMonth, items };
 }
+
+/**
+ * 사이트맵용 단지 id 목록.
+ *
+ * 거래가 한 건도 없는 단지는 상세 페이지에 보여줄 내용이 없으므로 제외한다.
+ * (빈 페이지를 대량으로 색인시키면 사이트 전체 평가에 해롭다.)
+ */
+export async function aptSitemapEntries(limit = 50000): Promise<
+    Array<{ id: number; lastModified: string | null }>
+> {
+    const n = Math.min(Math.max(limit, 1), 50000);
+    const rows = (await query(
+        `SELECT a.id, MAX(d.deal_date) AS last_deal
+           FROM apartments a
+           JOIN apartment_deals d ON d.apt_id = a.id
+          WHERE ${NOT_CANCELED}
+          GROUP BY a.id
+          ORDER BY COUNT(*) DESC, a.id
+          LIMIT ${n}`,
+    )) as Array<{ id: number; last_deal: Date | string | null }>;
+
+    return rows.map((r) => ({ id: r.id, lastModified: toDateString(r.last_deal) }));
+}

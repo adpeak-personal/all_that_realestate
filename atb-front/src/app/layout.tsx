@@ -14,8 +14,19 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "올댓부동산 - 부동산 실거래가 & 분양정보",
-  description: "전국 아파트·오피스텔 실거래가와 분양정보를 한눈에 확인하세요",
+  // alternates.canonical 과 og:url 이 절대 URL 로 나가려면 기준이 필요하다.
+  metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:6060"),
+  title: {
+    default: "올댓부동산 - 전국 아파트 실거래가·시세",
+    // 하위 페이지가 title 을 주면 뒤에 사이트명이 붙는다 (3만 개 중복 title 방지)
+    template: "%s | 올댓부동산",
+  },
+  description: "전국 아파트 매매 실거래가와 지역별 시세 추이를 확인하세요",
+  openGraph: {
+    siteName: "올댓부동산",
+    locale: "ko_KR",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
