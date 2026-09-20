@@ -29,10 +29,11 @@ function prevMonth({ year, month }: YearMonth): YearMonth {
 }
 
 export interface RegionStat {
-    sido: string;         // 단축명 (서울, 경기, ...)
-    trades: number;       // 해당 월 거래 건수
-    avgPrice: number;     // 평균 거래금액 (만원)
-    trend: number | null; // ㎡당 단가 전월 대비 증감률 (%). 전월 데이터 없으면 null
+    sido: string;          // 단축명 (서울, 경기, ...)
+    trades: number;        // 해당 월 거래 건수
+    avgPrice: number;      // 평균 거래금액 (만원)
+    unitPrice: number | null; // ㎡당 평균 단가 (만원) — 지역 간 비교는 이 값으로
+    trend: number | null;  // ㎡당 단가 전월 대비 증감률 (%). 전월 데이터 없으면 null
 }
 
 /**
@@ -86,6 +87,7 @@ export async function regionStats(ym: YearMonth): Promise<RegionStat[]> {
                 sido: toShortSido(r.sido),
                 trades: Number(r.trades),
                 avgPrice: Math.round(Number(r.avg_price ?? 0)),
+                unitPrice: cur === null ? null : Math.round(cur),
                 trend,
             };
         })
@@ -701,5 +703,47 @@ export async function listApts(opts: {
         total: Number(countRows[0]?.cnt ?? 0),
         page,
         size,
+    };
+}
+
+
+export interface SiteSummary {
+    totalDeals: number;
+    totalApts: number;
+    totalSgg: number;
+    firstMonth: string | null;  // 'YYYYMM'
+    lastMonth: string | null;
+}
+
+/** 사이트 전체 수집 현황 — 메인에서 '이 사이트가 뭘 갖고 있는지' 보여주는 값. */
+export async function siteSummary(): Promise<SiteSummary> {
+    const rows = (await query(
+        `SELECT COUNT(*) AS deals,
+                COUNT(DISTINCT d.apt_id) AS apts,
+                COUNT(DISTINCT d.sgg_cd) AS sgg,
+                MIN(d.deal_date) AS first_date,
+                MAX(d.deal_date) AS last_date
+           FROM apartment_deals d
+          WHERE ${'${NOT_CANCELED}'}`.replace('${NOT_CANCELED}', NOT_CANCELED),
+    )) as Array<{
+        deals: number;
+        apts: number;
+        sgg: number;
+        first_date: Date | string | null;
+        last_date: Date | string | null;
+    }>;
+
+    const r = rows[0];
+    const ym = (v: Date | string | null) => {
+        const d = toDateString(v);
+        return d ? d.slice(0, 4) + d.slice(5, 7) : null;
+    };
+
+    return {
+        totalDeals: Number(r?.deals ?? 0),
+        totalApts: Number(r?.apts ?? 0),
+        totalSgg: Number(r?.sgg ?? 0),
+        firstMonth: ym(r?.first_date ?? null),
+        lastMonth: ym(r?.last_date ?? null),
     };
 }

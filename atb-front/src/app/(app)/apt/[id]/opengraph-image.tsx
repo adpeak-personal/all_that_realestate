@@ -7,7 +7,7 @@ export const alt = '단지 실거래가 요약';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-const INDIGO = '#4F46E5';
+const BRAND = '#056B5E';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 const LINE = '#e2e8f0';
@@ -99,8 +99,8 @@ export default async function Image({ params }: Props) {
       >
         {/* 브랜드 */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ width: 8, height: 34, backgroundColor: INDIGO, borderRadius: 4 }} />
-          <div style={{ fontSize: 30, fontWeight: 700, color: INDIGO, marginLeft: 14 }}>
+          <div style={{ width: 8, height: 34, backgroundColor: BRAND, borderRadius: 4 }} />
+          <div style={{ fontSize: 30, fontWeight: 700, color: BRAND, marginLeft: 14 }}>
             올댓부동산
           </div>
         </div>
@@ -149,7 +149,7 @@ export default async function Image({ params }: Props) {
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <div style={{ display: 'flex', alignItems: 'baseline' }}>
                 <div style={{ fontSize: 24, color: MUTED, marginRight: 16 }}>최근 실거래</div>
-                <div style={{ fontSize: 58, fontWeight: 700, color: INDIGO }}>{priceText}</div>
+                <div style={{ fontSize: 58, fontWeight: 700, color: BRAND }}>{priceText}</div>
               </div>
               <div style={{ fontSize: 24, color: MUTED, marginTop: 6 }}>{dealSub}</div>
             </div>

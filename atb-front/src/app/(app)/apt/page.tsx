@@ -22,6 +22,7 @@ async function readParams(searchParams: Props['searchParams']) {
   const sp = await searchParams;
   const sortRaw = one(sp.sort);
   return {
+    q: (one(sp.q) || '').trim(),
     sido: one(sp.sido) || '서울',
     sggCd: one(sp.sggCd) || null,
     sort: (VALID_SORTS.has(sortRaw as AptSort) ? sortRaw : 'deals') as AptSort,
@@ -30,7 +31,16 @@ async function readParams(searchParams: Props['searchParams']) {
 }
 
 export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const { sido, sggCd } = await readParams(searchParams);
+  const { q, sido, sggCd } = await readParams(searchParams);
+
+  // 검색 결과는 색인 대상이 아니다 (같은 내용이 무한히 생긴다)
+  if (q) {
+    return {
+      title: `'${q}' 단지 검색`,
+      description: `단지명에 '${q}' 가 들어가는 아파트를 찾습니다.`,
+      robots: { index: false, follow: true },
+    };
+  }
 
   const breakdown = await fetchSggBreakdown(sido);
   const sgg = sggCd ? breakdown?.items.find((i) => i.code === sggCd)?.sgg : null;
@@ -46,15 +56,20 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 export default async function AptListPage({ searchParams }: Props) {
-  const { sido, sggCd, sort, page } = await readParams(searchParams);
+  const { q, sido, sggCd, sort, page } = await readParams(searchParams);
 
+  // 검색어가 있으면 지역을 가리지 않고 전국에서 찾는다.
   const [breakdown, result] = await Promise.all([
     fetchSggBreakdown(sido),
-    fetchApts({ sido, sggCd: sggCd ?? undefined, sort, page, size: SIZE }),
+    fetchApts(
+      q
+        ? { q, sort, page, size: SIZE }
+        : { sido, sggCd: sggCd ?? undefined, sort, page, size: SIZE },
+    ),
   ]);
 
   const sggName = sggCd ? breakdown?.items.find((i) => i.code === sggCd)?.sgg : null;
-  const where = sggName ? `${sido} ${sggName}` : `${sido} 전체`;
+  const where = q ? `'${q}' 검색` : sggName ? `${sido} ${sggName}` : `${sido} 전체`;
   const total = result?.total ?? 0;
   const totalPages = Math.max(Math.ceil(total / SIZE), 1);
 
@@ -64,11 +79,25 @@ export default async function AptListPage({ searchParams }: Props) {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 tracking-tight">아파트 단지 찾기</h1>
           <p className="text-slate-500 mt-2">
-            지역을 고르면 그 지역의 단지를 거래량·시세 순으로 볼 수 있습니다.
+            {q
+              ? '단지명으로 전국에서 찾은 결과입니다.'
+              : '지역을 고르면 그 지역의 단지를 거래량·시세 순으로 볼 수 있습니다.'}
           </p>
         </div>
 
-        {/* 지역 선택 */}
+        {q ? (
+          <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 mb-6 flex flex-wrap items-center justify-between gap-3">
+            <p className="text-slate-700">
+              <span className="font-bold text-slate-900">&lsquo;{q}&rsquo;</span> 검색 결과
+            </p>
+            <Link
+              href="/apt"
+              className="text-sm font-semibold text-brand-700 hover:text-brand-600"
+            >
+              지역으로 찾기 →
+            </Link>
+          </div>
+        ) : (
         <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 mb-6 space-y-4">
           <div>
             <p className="text-xs font-semibold text-slate-400 mb-2">시 · 도</p>
@@ -83,6 +112,7 @@ export default async function AptListPage({ searchParams }: Props) {
             <SggChips items={breakdown?.items ?? []} selected={sggCd} />
           </div>
         </div>
+        )}
 
         {/* 결과 헤더 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
@@ -97,8 +127,12 @@ export default async function AptListPage({ searchParams }: Props) {
         {/* 단지 목록 */}
         {!result || result.items.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
-            <p className="text-slate-600">이 지역에는 수집된 거래가 없습니다</p>
-            <p className="text-sm text-slate-400 mt-1.5">다른 지역을 선택해보세요</p>
+            <p className="text-slate-600">
+              {q ? '검색 결과가 없습니다' : '이 지역에는 수집된 거래가 없습니다'}
+            </p>
+            <p className="text-sm text-slate-400 mt-1.5">
+              {q ? '단지명 일부만 입력해보세요 (예: 래미안)' : '다른 지역을 선택해보세요'}
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
@@ -135,7 +169,7 @@ export default async function AptListPage({ searchParams }: Props) {
                     <span className="text-right w-32 sm:w-40 shrink-0">
                       {apt.lastDealAmount !== null ? (
                         <>
-                          <span className="block font-bold text-indigo-600 tabular-nums">
+                          <span className="block font-bold text-brand-700 tabular-nums">
                             {formatPrice(apt.lastDealAmount)}
                           </span>
                           <span className="block text-xs text-slate-400 tabular-nums mt-0.5">

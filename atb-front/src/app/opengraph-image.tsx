@@ -10,7 +10,7 @@ export const alt = '올댓부동산 - 전국 아파트 실거래가';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-const INDIGO = '#4F46E5';
+const BRAND = '#056B5E';
 const INK = '#0f172a';
 const MUTED = '#64748b';
 
@@ -63,8 +63,8 @@ export default async function Image() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center' }}>
-          <div style={{ width: 10, height: 44, backgroundColor: INDIGO, borderRadius: 5 }} />
-          <div style={{ fontSize: 40, fontWeight: 700, color: INDIGO, marginLeft: 16 }}>
+          <div style={{ width: 10, height: 44, backgroundColor: BRAND, borderRadius: 5 }} />
+          <div style={{ fontSize: 40, fontWeight: 700, color: BRAND, marginLeft: 16 }}>
             올댓부동산
           </div>
         </div>

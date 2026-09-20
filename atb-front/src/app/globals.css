@@ -1,22 +1,38 @@
 @import "tailwindcss";
 
+/*
+ * 브랜드 팔레트 — 딥 틸그린.
+ *
+ * Tailwind 기본 indigo 는 어느 사이트에나 있어 고유색이 되지 못한다.
+ * 국내 부동산 서비스가 대부분 파랑 계열이라, 신뢰감은 유지하면서 구분되는
+ * 틸그린으로 잡았다.
+ *
+ * 단계는 용도별 대비로 정했다 (흰 배경 기준):
+ *   600 #00897B  4.32:1  마크·큰 글씨·차트 계열색 (채도 0.10 이상, 검증 통과)
+ *   700 #056B5E  6.42:1  본문 텍스트·링크
+ *   900 #0B3B35 12.42:1  딥 배경 (그 위 흰 글씨 12.42:1, brand-200 8.73:1)
+ * 600 을 본문 텍스트로 쓰면 4.5:1 을 못 넘기니 텍스트는 700 이상을 쓴다.
+ */
+@theme {
+  --color-brand-50: #ECFDF7;
+  --color-brand-100: #CCF3E9;
+  --color-brand-200: #9FE6D6;
+  --color-brand-300: #5FD3BC;
+  --color-brand-400: #22BBA1;
+  --color-brand-500: #00A892;
+  --color-brand-600: #00897B;
+  --color-brand-700: #056B5E;
+  --color-brand-800: #0A544A;
+  --color-brand-900: #0B3B35;
+
+  /* 시세 방향. 국내 관례대로 상승이 빨강이다 (증시·부동산 공통). */
+  --color-up: #DC2626;
+  --color-down: #2563EB;
+}
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --foreground: #0f172a;
 }
 
 html {
@@ -26,5 +42,13 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  /*
+   * Geist 는 한글 글리프가 없다. 라틴·숫자는 Geist 가 받고 한글은 시스템 폰트로
+   * 떨어지게 순서를 잡는다 (글리프 단위로 폴백된다). 숫자가 많은 화면이라
+   * 라틴 쪽을 Geist 로 두는 편이 표 정렬에 유리하다.
+   */
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, system-ui,
+    "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Malgun Gothic", "맑은 고딕",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
 }

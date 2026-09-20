@@ -17,20 +17,20 @@ export default function MainLayout({
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
                     <Link href="/" className="flex items-center gap-1.5">
-                        <span className="text-xl font-extrabold text-indigo-700 tracking-tight">
+                        <span className="text-xl font-extrabold text-brand-700 tracking-tight">
                             올댓부동산
                         </span>
                     </Link>
                     <nav className="flex items-center gap-6">
                         <Link
                             href="/"
-                            className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors"
+                            className="text-sm font-medium text-slate-700 hover:text-brand-700 transition-colors"
                         >
                             지역별 시세
                         </Link>
                         <Link
                             href="/apt"
-                            className="text-sm font-medium text-slate-700 hover:text-indigo-600 transition-colors"
+                            className="text-sm font-medium text-slate-700 hover:text-brand-700 transition-colors"
                         >
                             단지 찾기
                         </Link>

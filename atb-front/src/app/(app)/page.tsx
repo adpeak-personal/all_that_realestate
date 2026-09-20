@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
 import HomeView from './HomeView';
 import {
+  fetchApts,
   fetchPriceTrend,
   fetchRecentDeals,
   fetchRegionStats,
+  fetchSiteSummary,
 } from '../../service/server/api';
 import { formatYearMonth } from '../../lib/format';
 
@@ -30,17 +32,21 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [stats, deals, trend] = await Promise.all([
+  const [summary, stats, deals, trend, popular] = await Promise.all([
+    fetchSiteSummary(),
     fetchRegionStats(),
-    fetchRecentDeals(8),
+    fetchRecentDeals(10),
     fetchPriceTrend({ months: 12 }),
+    fetchApts({ sort: 'deals', size: 8 }),
   ]);
 
   return (
     <HomeView
-      initialStats={stats ?? undefined}
-      initialDeals={deals ?? undefined}
-      initialTrend={trend ?? undefined}
+      summary={summary ?? undefined}
+      stats={stats ?? undefined}
+      trend={trend ?? undefined}
+      recent={deals?.items ?? []}
+      popular={popular?.items ?? []}
     />
   );
 }

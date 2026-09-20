@@ -17,6 +17,7 @@ import type {
   RecentDealsResult,
   RegionStatsResult,
   SggResult,
+  SiteSummary,
   TrendResult,
 } from '../main/type';
 
@@ -101,4 +102,9 @@ export function fetchApts(params: {
   if (params.page) qs.set('page', String(params.page));
   if (params.size) qs.set('size', String(params.size));
   return get<AptListResult>(`/api/apts?${qs.toString()}`);
+}
+
+/** 사이트 전체 수집 현황 */
+export function fetchSiteSummary() {
+  return get<SiteSummary>('/api/stats/summary', 60 * 60);
 }

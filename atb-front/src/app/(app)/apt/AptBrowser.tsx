@@ -43,8 +43,8 @@ export function SidoTabs({ selected }: { selected: string }) {
             onClick={() => go({ sido: s, sggCd: null })}
             className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               on
-                ? 'bg-indigo-600 text-white'
-                : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300 hover:text-indigo-600'
+                ? 'bg-brand-700 text-white'
+                : 'bg-white text-slate-600 border border-slate-200 hover:border-brand-400 hover:text-brand-700'
             }`}
           >
             {s}
@@ -172,7 +172,7 @@ export function Pager({ page, totalPages }: { page: number; totalPages: number }
           aria-current={n === page ? 'page' : undefined}
           className={`${box} ${
             n === page
-              ? 'bg-indigo-600 text-white border-indigo-600 font-semibold'
+              ? 'bg-brand-700 text-white border-brand-700 font-semibold'
               : 'border-slate-200 hover:bg-slate-50'
           }`}
         >

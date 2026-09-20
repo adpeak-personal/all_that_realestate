@@ -138,7 +138,7 @@ export default function AptDetailView({
         <div className="mb-6">
           <Link
             href="/apt"
-            className="text-sm text-slate-500 hover:text-indigo-600 transition-colors"
+            className="text-sm text-slate-500 hover:text-brand-700 transition-colors"
           >
             ← 실거래가 목록
           </Link>
@@ -176,10 +176,10 @@ export default function AptDetailView({
                 {areaChips.map((area) => (
                   <span
                     key={area}
-                    className="bg-indigo-50 text-indigo-700 text-sm font-medium px-3 py-1.5 rounded-lg"
+                    className="bg-brand-50 text-brand-700 text-sm font-medium px-3 py-1.5 rounded-lg"
                   >
                     {area}㎡
-                    <span className="text-indigo-400 ml-1.5 text-xs">
+                    <span className="text-brand-500 ml-1.5 text-xs">
                       {toPyeong(Number(area))}평
                     </span>
                   </span>
@@ -250,7 +250,7 @@ export default function AptDetailView({
                           </span>
                         </td>
                         <td className="px-3 py-3 text-right text-slate-600">{d.floor ?? '-'}</td>
-                        <td className="px-3 py-3 text-right font-bold text-indigo-600">
+                        <td className="px-3 py-3 text-right font-bold text-brand-700">
                           {formatPrice(d.dealAmount)}
                         </td>
                         <td className="px-3 py-3 text-right text-slate-400 text-xs">

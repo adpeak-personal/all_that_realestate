@@ -46,8 +46,9 @@ export interface RecentDealsResult {
 export interface RegionStat {
   sido: string;
   trades: number;
-  avgPrice: number;     // 만원
-  trend: number | null; // ㎡당 단가 전월 대비 %, 비교 대상 없으면 null
+  avgPrice: number;         // 만원
+  unitPrice: number | null; // ㎡당 평균 단가 (만원) — 지역 간 비교는 이 값으로
+  trend: number | null;     // ㎡당 단가 전월 대비 %, 비교 대상 없으면 null
 }
 
 export interface RegionStatsResult {
@@ -151,4 +152,13 @@ export interface AptListResult {
   total: number;
   page: number;
   size: number;
+}
+
+/** 사이트 전체 수집 현황 */
+export interface SiteSummary {
+  totalDeals: number;
+  totalApts: number;
+  totalSgg: number;
+  firstMonth: string | null;
+  lastMonth: string | null;
 }

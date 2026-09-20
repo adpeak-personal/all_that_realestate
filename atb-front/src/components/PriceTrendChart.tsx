@@ -14,7 +14,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TrendPoint } from '../service/main/type';
 
-const SERIES = '#4F46E5'; // indigo-600 — 대비/명도 검증 통과
+const SERIES = '#00897B'; // brand-600 — 명도·채도·대비 검증 통과
 const GRID = '#e2e8f0';   // slate-200, 표면에서 한 단계
 const SURFACE = '#ffffff';
 
@@ -161,7 +161,7 @@ export default function PriceTrendChart({ items, title, subtitle, loading }: Pro
         </div>
         <button
           onClick={() => setShowTable((v) => !v)}
-          className="text-xs font-medium text-slate-500 hover:text-indigo-600 border border-slate-200 rounded-md px-2.5 py-1 shrink-0"
+          className="text-xs font-medium text-slate-500 hover:text-brand-700 border border-slate-200 rounded-md px-2.5 py-1 shrink-0"
           aria-pressed={showTable}
         >
           {showTable ? '차트로' : '표로'}
@@ -208,7 +208,7 @@ export default function PriceTrendChart({ items, title, subtitle, loading }: Pro
             height={HEIGHT}
             role="img"
             aria-label={`${title}. ${items[0]?.ym.slice(0, 4)}년부터 ${items.length}개월간 ㎡당 평균 단가 추이. 표로 보기 버튼으로 수치를 확인할 수 있습니다.`}
-            className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded"
+            className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 rounded"
             tabIndex={0}
             onPointerMove={(e) => setHover(pointerToIndex(e.clientX))}
             onPointerLeave={() => setHover(null)}

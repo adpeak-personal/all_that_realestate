@@ -10,6 +10,7 @@ import {
     aptSitemapEntries,
     sggBreakdown,
     listApts,
+    siteSummary,
 } from '../lib/queries';
 import type { AptSort } from '../lib/queries';
 
@@ -131,6 +132,17 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             fastify.log.error(err);
             reply.status(500);
             return { error: '시세 추이 조회 실패' };
+        }
+    });
+
+    /** 사이트 전체 수집 현황 — GET /api/stats/summary */
+    fastify.get('/stats/summary', async (request, reply) => {
+        try {
+            return await siteSummary();
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '수집 현황 조회 실패' };
         }
     });
 
