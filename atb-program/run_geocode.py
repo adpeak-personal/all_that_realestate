@@ -42,15 +42,12 @@ def main(argv: list[str]) -> int:
     retry_errors = "--no-retry" not in flags
 
     # 키가 없으면 전 건이 '오류'로 찍히고 끝난다. 시작 전에 막는다.
-    missing = [
-        name
-        for name in ("JUSO_SEARCH_KEY", "JUSO_COORD_KEY")
-        if not config.env(name)
-    ]
-    if missing:
-        print(f"✗ {', '.join(missing)} 가 설정되지 않았습니다 ({config.ENV_PATH}).")
+    # 두 API 에 같은 키가 나올 수 있어 하나만 있어도 진행한다.
+    if not (config.env("JUSO_SEARCH_KEY") or config.env("JUSO_COORD_KEY")):
+        print(f"✗ JUSO_SEARCH_KEY / JUSO_COORD_KEY 가 없습니다 ({config.ENV_PATH}).")
         print("  business.juso.go.kr 에서 '도로명주소 검색 API' 와 '좌표제공 API' 를")
-        print("  각각 신청하면 승인키가 나옵니다 (자동승인, 무료).")
+        print("  신청하면 승인키가 나옵니다 (자동승인, 무료).")
+        print("  같은 키가 나왔다면 둘 중 하나에만 넣어도 됩니다.")
         return 1
 
     rows = db.get_pending_geocode(limit, retry_errors=retry_errors)

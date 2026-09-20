@@ -62,8 +62,12 @@ class JusoGeocoder:
     """
 
     def __init__(self, search_key: str = "", coord_key: str = "", timeout: int = 10):
-        self.search_key = search_key or config.env("JUSO_SEARCH_KEY")
-        self.coord_key = coord_key or config.env("JUSO_COORD_KEY")
+        s = search_key or config.env("JUSO_SEARCH_KEY")
+        c = coord_key or config.env("JUSO_COORD_KEY")
+        # '1 시스템 1 승인키' 안내가 있어 두 API 에 같은 키가 나올 수 있다.
+        # 하나만 넣어도 동작하게 서로 메운다.
+        self.search_key = s or c
+        self.coord_key = c or s
         self.timeout = timeout
 
     def _check(self, common: dict, where: str) -> None:
