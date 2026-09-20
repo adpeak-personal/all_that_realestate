@@ -387,6 +387,9 @@ CREATE TABLE IF NOT EXISTS `apartments` (
   `address_jibun`    VARCHAR(200)  DEFAULT NULL COMMENT '지번주소',
   `lat`              DECIMAL(10,7) DEFAULT NULL COMMENT '위도 (WGS84, 별도 지오코딩)',
   `lng`              DECIMAL(10,7) DEFAULT NULL COMMENT '경도 (WGS84, 별도 지오코딩)',
+  `geocode_status`   TINYINT       NOT NULL DEFAULT 0
+     COMMENT '0:미처리 1:성공 2:주소로 못찾음 3:오류(재시도 대상)',
+  `geocoded_at`      TIMESTAMP     NULL DEFAULT NULL COMMENT '지오코딩 시각',
 
   -- 파생 (apartment_deals 집계) — 전용면적 기준 시세 조회/필터용
   `exclu_areas`      JSON          DEFAULT NULL COMMENT '이 단지에서 거래된 전용면적(㎡) 종류 배열. deals 파생, 저장 시 갱신',
@@ -408,6 +411,7 @@ CREATE TABLE IF NOT EXISTS `apartments` (
   KEY `idx_kapt_code`     (`kapt_code`),
   KEY `idx_match_status`  (`match_status`),
   KEY `idx_coords`        (`lat`, `lng`),
+  KEY `idx_geocode_status` (`geocode_status`),
   KEY `idx_image_status`  (`image_status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='아파트 단지 마스터 (실거래 파생 + K-apt 매칭)';

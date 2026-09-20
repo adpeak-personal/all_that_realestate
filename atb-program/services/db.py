@@ -314,6 +314,70 @@ def get_unmatched_apartments(sgg_cd: int | None = None) -> list[dict]:
         conn.close()
 
 
+# ─── 지오코딩 ─────────────────────────────────────────────────────────────────
+def get_pending_geocode(limit: int | None = None, retry_errors: bool = True) -> list[dict]:
+    """좌표가 없는 단지와 그 최선의 주소.
+
+    주소 우선순위: K-apt 도로명 > K-apt 지번 > 실거래 기반 조합.
+    '주소로 못찾음(2)' 은 같은 주소로 다시 물어도 결과가 같으므로 기본 제외하고,
+    '오류(3)' 만 재시도 대상에 넣는다.
+    """
+    statuses = "(0, 3)" if retry_errors else "(0)"
+    sql = f"""
+        SELECT a.id,
+               COALESCE(
+                 NULLIF(k.addr_road, ''),
+                 NULLIF(k.addr_jibun, ''),
+                 CONCAT_WS(' ', s.sido_nm, s.sgg_nm, a.umd_nm, a.jibun)
+               ) AS address,
+               a.apt_nm
+          FROM apartments a
+          JOIN sgg_codes s ON s.sgg_cd = a.sgg_cd
+          LEFT JOIN kapt_complexes k ON k.kapt_code = a.kapt_code
+         WHERE a.geocode_status IN {statuses}
+           AND (a.lat IS NULL OR a.lng IS NULL)
+         ORDER BY a.id
+    """
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def set_apartment_coord(apt_id: int, lat: float, lng: float) -> None:
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE apartments SET lat=%s, lng=%s, geocode_status=1, geocoded_at=NOW() "
+                "WHERE id=%s",
+                (lat, lng, apt_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def mark_geocode_failed(apt_id: int, status: int) -> None:
+    """status 2: 주소로 못찾음(재시도 무의미) / 3: 오류(다음 실행에서 재시도)."""
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE apartments SET geocode_status=%s, geocoded_at=NOW() WHERE id=%s",
+                (status, apt_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def reset_matches(sgg_cd: int | None = None) -> int:
     """매칭 결과 초기화 (match_status=0). 매처를 개선한 뒤 전량 재매칭할 때 쓴다.
 

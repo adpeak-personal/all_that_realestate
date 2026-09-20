@@ -76,6 +76,9 @@ export interface AptDetail {
   thumbnailUrl: string | null;
   excluAreas: number[];
   matchStatus: number;
+  /** WGS84. 지오코딩 전이면 null */
+  lat: number | null;
+  lng: number | null;
   kapt: {
     name: string;
     totalHouseholds: number | null;

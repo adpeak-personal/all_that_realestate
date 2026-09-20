@@ -279,6 +279,9 @@ export interface AptDetail {
     thumbnailUrl: string | null;
     excluAreas: number[];
     matchStatus: number;
+    /** WGS84. 지오코딩 전이면 null */
+    lat: number | null;
+    lng: number | null;
     /** 아래는 K-apt 매칭이 된 단지만 채워진다 (미매칭이면 전부 null) */
     kapt: {
         name: string;
@@ -299,7 +302,7 @@ export interface AptDetail {
 export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     const rows = (await query(
         `SELECT a.id, a.apt_nm, a.umd_nm, a.jibun, a.build_year,
-                a.thumbnail_url, a.exclu_areas, a.match_status,
+                a.thumbnail_url, a.exclu_areas, a.match_status, a.lat, a.lng,
                 s.sido_nm, s.sgg_nm,
                 k.kapt_name, k.total_households, k.dong_cnt, k.top_floor,
                 k.use_apr_date, k.heat_type, k.hall_type, k.builder,
@@ -340,6 +343,9 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         thumbnailUrl: r.thumbnail_url ?? null,
         excluAreas: areas,
         matchStatus: r.match_status,
+        // DECIMAL 은 드라이버가 문자열로 준다
+        lat: r.lat === null || r.lat === undefined ? null : Number(r.lat),
+        lng: r.lng === null || r.lng === undefined ? null : Number(r.lng),
         kapt: r.kapt_name
             ? {
                   name: r.kapt_name,
