@@ -1,17 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+// Pretendard 동적 서브셋 — 한글 폰트 전체(2MB+)를 받지 않고 페이지에 쓰인
+// 글자가 속한 구간 파일만 받는다. npm 패키지에서 가져와 번들되므로 외부 CDN
+// 없이 우리 서버에서 서빙된다. (SIL OFL 1.1 — 상업 이용 가능)
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 import QueryProvider from "../service/QueryProvider";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   // alternates.canonical 과 og:url 이 절대 URL 로 나가려면 기준이 필요하다.
@@ -37,7 +30,7 @@ export default function RootLayout({
   return (
     <html
       lang="ko"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">
         <QueryProvider>{children}</QueryProvider>
