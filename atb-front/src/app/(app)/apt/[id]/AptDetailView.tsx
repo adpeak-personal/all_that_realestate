@@ -81,6 +81,15 @@ function KaptPanel({ apt }: { apt: AptDetail }) {
           label="총 주차대수"
           value={k.parkingTotal ? `${k.parkingTotal.toLocaleString()}대` : null}
         />
+        {/* 0 은 '없음' 이 아니라 미기재로 본다 — 승강기 0대 단지는 사실상 표기 누락이다 */}
+        <InfoRow
+          label="승강기"
+          value={k.elevatorCnt ? `${k.elevatorCnt.toLocaleString()}대` : null}
+        />
+        <InfoRow
+          label="전기차 충전기"
+          value={k.evChargerCnt ? `${k.evChargerCnt.toLocaleString()}대` : null}
+        />
       </dl>
 
       {k.parkingTotal === null && (
@@ -98,6 +107,92 @@ interface ViewProps {
   initialDetail: AptDetail;
   initialTrend?: TrendResult;
   initialDeals?: DealListResult;
+}
+
+/**
+ * K-apt 가 "초등학교(대도초등학교) 중학교(숙명여중)" 같은 한 덩어리 문자열로 준다.
+ * 괄호 앞을 분류, 괄호 안을 이름으로 쪼갠다. 형식이 어긋나면 통째로 하나로 둔다.
+ */
+function parseFacilities(raw: string | null): Array<{ kind: string; name: string }> {
+  if (!raw) return [];
+  const out: Array<{ kind: string; name: string }> = [];
+  const re = /([^()]+?)\(([^()]*)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(raw)) !== null) {
+    const kind = m[1].replace(/[,·]/g, ' ').trim();
+    const name = m[2].trim();
+    if (kind || name) out.push({ kind, name });
+  }
+  if (out.length === 0) {
+    const t = raw.trim();
+    if (t) out.push({ kind: '', name: t });
+  }
+  return out;
+}
+
+function FacilityGroup({ title, raw }: { title: string; raw: string | null }) {
+  const items = parseFacilities(raw);
+  if (items.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-sm font-semibold text-slate-700 mb-2">{title}</p>
+      <div className="flex flex-wrap gap-1.5">
+        {items.map((f, i) => (
+          <span
+            key={`${f.kind}-${f.name}-${i}`}
+            className="text-sm bg-slate-50 rounded-lg px-2.5 py-1.5"
+          >
+            {f.kind && <span className="text-slate-400 mr-1.5">{f.kind}</span>}
+            <span className="font-medium text-slate-800">{f.name}</span>
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** 교통·학군·편의. K-apt 상세가 단지마다 채움률이 달라 통째로 없을 수 있다. */
+function LocationPanel({ apt }: { apt: AptDetail }) {
+  const k = apt.kapt;
+  if (!k) return null;
+
+  const hasTransit = k.subwayStation || k.subwayWalk || k.busWalk;
+  const hasFacility = k.educationFacility || k.convenientFacility || k.welfareFacility;
+  if (!hasTransit && !hasFacility) return null;
+
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5">
+      <h2 className="text-lg font-bold text-slate-900">입지 정보</h2>
+
+      {hasTransit && (
+        <div className="flex flex-wrap gap-3">
+          {k.subwayStation && (
+            <div className="flex-1 min-w-[160px] bg-brand-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-brand-700 font-semibold">지하철</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5">
+                {k.subwayStation}역
+              </p>
+              <p className="text-sm text-slate-500">
+                {[k.subwayLine, k.subwayWalk].filter(Boolean).join(' · ')}
+              </p>
+            </div>
+          )}
+          {k.busWalk && (
+            <div className="flex-1 min-w-[160px] bg-slate-50 rounded-xl px-4 py-3">
+              <p className="text-xs text-slate-500 font-semibold">버스정류장</p>
+              <p className="text-lg font-bold text-slate-900 mt-0.5">{k.busWalk}</p>
+              <p className="text-sm text-slate-400">도보</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      <FacilityGroup title="학군" raw={k.educationFacility} />
+      <FacilityGroup title="주변 편의시설" raw={k.convenientFacility} />
+      <FacilityGroup title="단지 내 시설" raw={k.welfareFacility} />
+    </div>
+  );
 }
 
 export default function AptDetailView({
@@ -157,6 +252,8 @@ export default function AptDetailView({
 
         <div className="space-y-6">
           <KaptPanel apt={apt} />
+
+          <LocationPanel apt={apt} />
 
           <PriceTrendChart
             items={trendQuery.data?.items ?? []}

@@ -347,6 +347,18 @@ CREATE TABLE IF NOT EXISTS `kapt_complexes` (
   `parking_total`    INT           DEFAULT NULL COMMENT '총주차대수 = 지상(kaptdPcnt)+지하(kaptdPcntu)',
   `cctv_cnt`         INT           DEFAULT NULL COMMENT 'CCTV 대수 (kaptdCccnt)',
 
+  -- 교통·학군·편의 (상세정보). 부동산에서 실제로 많이 보는 항목이라
+  -- raw 에만 두지 않고 컬럼으로 뽑는다.
+  `subway_line`      VARCHAR(255)  DEFAULT NULL COMMENT '지하철 노선 (subwayLine, 중복 제거)',
+  `subway_station`   VARCHAR(60)   DEFAULT NULL COMMENT '지하철 역 (subwayStation)',
+  `subway_walk`      VARCHAR(20)   DEFAULT NULL COMMENT '역까지 도보 (kaptdWtimesub)',
+  `bus_walk`         VARCHAR(20)   DEFAULT NULL COMMENT '버스까지 도보 (kaptdWtimebus)',
+  `education_facility`  VARCHAR(500) DEFAULT NULL COMMENT '교육시설 (학군)',
+  `convenient_facility` VARCHAR(800) DEFAULT NULL COMMENT '편의시설',
+  `welfare_facility`    VARCHAR(800) DEFAULT NULL COMMENT '부대복리시설 (커뮤니티)',
+  `elevator_cnt`     SMALLINT      DEFAULT NULL COMMENT '승강기 대수 (kaptdEcnt)',
+  `ev_charger_cnt`   SMALLINT      DEFAULT NULL COMMENT '전기차 충전기 (지상+지하)',
+
   `raw`              JSON          DEFAULT NULL COMMENT '기본+상세 원본 응답 병합',
   `synced_at`        TIMESTAMP     NULL DEFAULT NULL COMMENT '마지막 동기화 시각',
   `created_at`       TIMESTAMP     DEFAULT CURRENT_TIMESTAMP,

@@ -324,6 +324,16 @@ export interface AptDetail {
         parkingTotal: number | null;
         addrRoad: string | null;
         addrJibun: string | null;
+        /* 교통·학군·편의 — K-apt 상세. 단지마다 채움률이 달라 없을 수 있다. */
+        subwayLine: string | null;
+        subwayStation: string | null;
+        subwayWalk: string | null;
+        busWalk: string | null;
+        educationFacility: string | null;
+        convenientFacility: string | null;
+        welfareFacility: string | null;
+        elevatorCnt: number | null;
+        evChargerCnt: number | null;
     } | null;
 }
 
@@ -335,7 +345,10 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
                 s.sido_nm, s.sgg_nm,
                 k.kapt_name, k.total_households, k.dong_cnt, k.top_floor,
                 k.use_apr_date, k.heat_type, k.hall_type, k.builder,
-                k.parking_total, k.addr_road, k.addr_jibun
+                k.parking_total, k.addr_road, k.addr_jibun,
+                k.subway_line, k.subway_station, k.subway_walk, k.bus_walk,
+                k.education_facility, k.convenient_facility, k.welfare_facility,
+                k.elevator_cnt, k.ev_charger_cnt
            FROM apartments a
            JOIN sgg_codes s ON s.sgg_cd = a.sgg_cd
            LEFT JOIN kapt_complexes k ON k.kapt_code = a.kapt_code
@@ -388,6 +401,15 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
                   parkingTotal: r.parking_total ?? null,
                   addrRoad: r.addr_road ?? null,
                   addrJibun: r.addr_jibun ?? null,
+                  subwayLine: r.subway_line ?? null,
+                  subwayStation: r.subway_station ?? null,
+                  subwayWalk: r.subway_walk ?? null,
+                  busWalk: r.bus_walk ?? null,
+                  educationFacility: r.education_facility ?? null,
+                  convenientFacility: r.convenient_facility ?? null,
+                  welfareFacility: r.welfare_facility ?? null,
+                  elevatorCnt: r.elevator_cnt ?? null,
+                  evChargerCnt: r.ev_charger_cnt ?? null,
               }
             : null,
     };

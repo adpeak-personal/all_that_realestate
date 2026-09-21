@@ -270,6 +270,80 @@ def upsert_kapt_complexes(rows: list[dict]) -> int:
         conn.close()
 
 
+def get_kapt_missing_detail(limit: int | None = None,
+                            sido_prefix: int | None = None) -> list[dict]:
+    """상세정보가 비어 있는 단지 [{kapt_code, kapt_name}, ...].
+
+    기본정보는 이미 있고 상세만 없는 단지다. sync_sigungu 로 다시 돌리면
+    기본정보까지 또 받아 호출이 2배 들어서, 상세만 1회씩 채우려고 따로 뽑는다.
+    """
+    sql = ("SELECT kapt_code, kapt_name FROM kapt_complexes "
+           "WHERE COALESCE(JSON_LENGTH(raw->'$.dtl'), 0) = 0")
+    params: tuple = ()
+    if sido_prefix is not None:
+        sql += " AND sgg_cd DIV 1000 = %s"
+        params = (sido_prefix,)
+    sql += " ORDER BY kapt_code"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql, params)
+            return list(cur.fetchall())
+    finally:
+        conn.close()
+
+
+def get_kapt_with_detail(limit: int | None = None,
+                         sido_prefix: int | None = None) -> list[dict]:
+    """상세 원본이 있는 단지 [{kapt_code, dtl}, ...]. 매핑만 다시 돌릴 때 쓴다."""
+    sql = ("SELECT kapt_code, raw->'$.dtl' AS dtl FROM kapt_complexes "
+           "WHERE COALESCE(JSON_LENGTH(raw->'$.dtl'), 0) > 0")
+    params: tuple = ()
+    if sido_prefix is not None:
+        sql += " AND sgg_cd DIV 1000 = %s"
+        params = (sido_prefix,)
+    sql += " ORDER BY kapt_code"
+    if limit:
+        sql += f" LIMIT {int(limit)}"
+
+    conn = _conn()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cur:
+            cur.execute(sql, params)
+            rows = list(cur.fetchall())
+        for r in rows:
+            if isinstance(r["dtl"], str):
+                r["dtl"] = json.loads(r["dtl"])
+        return rows
+    finally:
+        conn.close()
+
+
+def update_kapt_detail(kapt_code: str, fields: dict, dtl: dict) -> None:
+    """상세 컬럼들 + raw.dtl 갱신. 기본정보(raw.bass)는 건드리지 않는다."""
+    cols = [k for k in fields]
+    sets = ", ".join(f"`{c}` = %s" for c in cols)
+    vals = [fields[c] for c in cols]
+
+    conn = _conn()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                f"UPDATE kapt_complexes "
+                f"SET {sets}, "
+                f"    raw = JSON_SET(COALESCE(raw, JSON_OBJECT()), '$.dtl', CAST(%s AS JSON)), "
+                f"    synced_at = NOW() "
+                f"WHERE kapt_code = %s",
+                (*vals, json.dumps(dtl, ensure_ascii=False), kapt_code),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def get_recent_kapt_codes(within_days: int) -> set:
     """최근 within_days 일 내 동기화된 kapt_code 집합 (재동기화 건너뛰기용)."""
     conn = _conn()

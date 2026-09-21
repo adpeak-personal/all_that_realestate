@@ -92,6 +92,16 @@ export interface AptDetail {
     parkingTotal: number | null;
     addrRoad: string | null;
     addrJibun: string | null;
+    /** 교통·학군·편의 — 단지마다 채움률이 달라 없을 수 있다 */
+    subwayLine: string | null;
+    subwayStation: string | null;
+    subwayWalk: string | null;
+    busWalk: string | null;
+    educationFacility: string | null;
+    convenientFacility: string | null;
+    welfareFacility: string | null;
+    elevatorCnt: number | null;
+    evChargerCnt: number | null;
   } | null;
 }
 

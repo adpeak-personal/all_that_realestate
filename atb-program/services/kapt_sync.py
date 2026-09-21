@@ -44,16 +44,66 @@ def _clean(v):
 
 
 # ─── 레코드 조립 (순수) ───────────────────────────────────────────────────────
+def _subway_lines(raw) -> str | None:
+    """지하철 노선 문자열 정리.
+
+    K-apt 는 같은 노선을 여러 번 적어 보내고("1호선, 1호선, 2호선"),
+    일부 단지는 전국 노선 목록이 통째로 덤프돼 온다(서울 단지에 부산 노선까지).
+    중복을 없애고, 그러고도 5개가 넘으면 그 단지의 값으로 신뢰하지 않는다
+    — 한 단지가 닿는 노선이 5개를 넘는 경우는 사실상 없다. 원본은 raw 에 남는다.
+    """
+    text = _clean(raw)
+    if not text:
+        return None
+
+    seen, lines = set(), []
+    for part in text.split(","):
+        v = part.strip()
+        if v and v not in seen:
+            seen.add(v)
+            lines.append(v)
+
+    if not lines or len(lines) > 5:
+        return None
+    return ", ".join(lines)[:255]
+
+
+def detail_fields(dtl: dict) -> dict:
+    """상세 응답 → kapt_complexes 의 상세 컬럼들.
+
+    신규 수집과 '상세만 보충' 양쪽에서 같은 매핑을 써야 해서 따로 뺐다.
+    """
+    parking = None
+    p_ground, p_under = _to_int(dtl.get("kaptdPcnt")), _to_int(dtl.get("kaptdPcntu"))
+    if p_ground is not None or p_under is not None:
+        parking = (p_ground or 0) + (p_under or 0)
+
+    ev_up, ev_down = (
+        _to_int(dtl.get("groundElChargerCnt")),
+        _to_int(dtl.get("undergroundElChargerCnt")),
+    )
+    ev = None if ev_up is None and ev_down is None else (ev_up or 0) + (ev_down or 0)
+
+    return {
+        "parking_total": parking,
+        "cctv_cnt": _to_int(dtl.get("kaptdCccnt")),
+        "subway_line": _subway_lines(dtl.get("subwayLine")),
+        "subway_station": _clean(dtl.get("subwayStation")),
+        "subway_walk": _clean(dtl.get("kaptdWtimesub")),
+        "bus_walk": _clean(dtl.get("kaptdWtimebus")),
+        "education_facility": _clean(dtl.get("educationFacility")),
+        "convenient_facility": _clean(dtl.get("convenientFacility")),
+        "welfare_facility": _clean(dtl.get("welfareFacility")),
+        "elevator_cnt": _to_int(dtl.get("kaptdEcnt")),
+        "ev_charger_cnt": ev,
+    }
+
+
 def build_complex_record(item: kapt_api.KaptListItem, bass: dict, dtl: dict) -> dict:
     """목록+기본+상세 dict → kapt_complexes 행 dict."""
     addr = _clean(bass.get("kaptAddr")) or ""
     jb = parse_addr_jibun(addr)
     jibun = jb[1] if jb else None
-
-    parking = None
-    p_ground, p_under = _to_int(dtl.get("kaptdPcnt")), _to_int(dtl.get("kaptdPcntu"))
-    if p_ground is not None or p_under is not None:
-        parking = (p_ground or 0) + (p_under or 0)
 
     sgg_cd = None
     bjd = _clean(item.bjdCode) or _clean(bass.get("bjdCode"))
@@ -81,8 +131,7 @@ def build_complex_record(item: kapt_api.KaptListItem, bass: dict, dtl: dict) -> 
         "sale_type": _clean(bass.get("codeSaleNm")),
         "builder": _clean(bass.get("kaptBcompany")),
         "total_area": _to_float(bass.get("kaptTarea")),
-        "parking_total": parking,
-        "cctv_cnt": _to_int(dtl.get("kaptdCccnt")),
+        **detail_fields(dtl),
         "raw": {"bass": bass, "dtl": dtl},
     }
 
