@@ -287,7 +287,7 @@ export default function AptDetailView({
 
           {/* ── 거래 이력 ── */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
               <div>
                 <h2 className="text-lg font-bold text-slate-900">거래 이력</h2>
                 {deals && (
@@ -324,7 +324,37 @@ export default function AptDetailView({
             ) : !deals || deals.items.length === 0 ? (
               <p className="text-center text-slate-400 py-12 text-sm">거래 이력이 없습니다.</p>
             ) : (
-              <div className="overflow-x-auto">
+              <>
+              {/*
+                모바일: 표 대신 2줄 목록. 6열 표는 375px 에서 가로 스크롤이 생기고
+                정작 중요한 거래금액이 화면 밖으로 밀린다. 금액을 가장 크게, 왼쪽
+                위에 두고 나머지는 보조 정보로 내린다.
+              */}
+              <ul className="md:hidden divide-y divide-slate-100">
+                {deals.items.map((d: Deal) => (
+                  <li key={d.id} className="flex items-start justify-between gap-3 px-4 py-3.5">
+                    <div className="min-w-0">
+                      <p className="text-base font-bold text-brand-700 tabular-nums">
+                        {formatPrice(d.dealAmount)}
+                      </p>
+                      <p className="mt-0.5 text-sm text-slate-600 tabular-nums">
+                        {d.excluUseAr.toFixed(2)}㎡
+                        <span className="text-slate-400"> ({toPyeong(d.excluUseAr)}평)</span>
+                        {d.floor != null && <span> · {d.floor}층</span>}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="text-sm text-slate-600 tabular-nums">{formatDate(d.dealDate)}</p>
+                      <p className="mt-0.5 text-xs text-slate-400 tabular-nums">
+                        {d.dealingGbn && <span>{d.dealingGbn} · </span>}
+                        ㎡당 {Math.round(d.dealAmount / d.excluUseAr).toLocaleString()}만
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 text-slate-500">
                     <tr>
@@ -361,6 +391,7 @@ export default function AptDetailView({
                   </tbody>
                 </table>
               </div>
+              </>
             )}
           </div>
         </div>
