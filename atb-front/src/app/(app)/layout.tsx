@@ -1,11 +1,13 @@
 import Link from 'next/link';
 import LogoMark from '../../components/LogoMark';
+import SiteNav from '../../components/SiteNav';
 
 /**
  * 헤더/푸터.
  *
- * 없는 기능은 걸어두지 않는다. 로그인·회사소개·채용 같은 자리만 잡은 링크는
- * 눌러도 아무 일이 없어 신뢰를 깎는다. 대신 푸터에는 데이터 출처를 적는다 —
+ * 없는 기능은 걸어두지 않는다. 회사소개·채용 같은 자리만 잡은 링크는
+ * 눌러도 아무 일이 없어 신뢰를 깎는다. (로그인은 페이지가 있고, 카카오 키가
+ * 들어오기 전까지는 그 페이지에서 '준비 중'임을 밝힌다.) 대신 푸터에는 데이터 출처를 적는다 —
  * 실거래가 사이트에서 출처 표기가 그 어떤 회사소개보다 신뢰에 가깝다.
  */
 export default function MainLayout({
@@ -17,33 +19,14 @@ export default function MainLayout({
         <div className="flex flex-col min-h-screen">
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
-                    <Link href="/" className="flex items-center gap-2">
+                    <Link href="/" className="flex items-center gap-2 shrink-0">
                         {/* aria-hidden 이다 — 바로 옆 워드마크를 두 번 읽지 않게 */}
                         <LogoMark size={28} className="text-brand-900" />
-                        <span className="text-xl font-extrabold text-brand-700 tracking-tight">
+                        <span className="sr-only min-[400px]:not-sr-only text-lg sm:text-xl font-extrabold text-brand-700 tracking-tight">
                             올댓부동산
                         </span>
                     </Link>
-                    <nav className="flex items-center gap-5 sm:gap-6">
-                        <Link
-                            href="/presale"
-                            className="text-sm font-bold text-sale-700 hover:text-sale-600 transition-colors"
-                        >
-                            분양정보
-                        </Link>
-                        <Link
-                            href="/"
-                            className="text-sm font-medium text-slate-700 hover:text-brand-700 transition-colors"
-                        >
-                            지역별 시세
-                        </Link>
-                        <Link
-                            href="/apt"
-                            className="text-sm font-medium text-slate-700 hover:text-brand-700 transition-colors"
-                        >
-                            단지 찾기
-                        </Link>
-                    </nav>
+                    <SiteNav />
                 </div>
             </header>
 
