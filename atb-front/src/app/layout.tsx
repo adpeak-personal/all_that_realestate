@@ -1,10 +1,19 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 // Pretendard 동적 서브셋 — 한글 폰트 전체(2MB+)를 받지 않고 페이지에 쓰인
 // 글자가 속한 구간 파일만 받는다. npm 패키지에서 가져와 번들되므로 외부 CDN
 // 없이 우리 서버에서 서빙된다. (SIL OFL 1.1 — 상업 이용 가능)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
 import QueryProvider from "../service/QueryProvider";
+
+// viewportFit: cover — 아이폰 노치·홈 인디케이터 영역까지 그리고,
+// 모바일 하단 탭이 env(safe-area-inset-bottom) 로 그만큼 비켜 앉는다.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#ffffff",
+};
 
 export const metadata: Metadata = {
   // alternates.canonical 과 og:url 이 절대 URL 로 나가려면 기준이 필요하다.

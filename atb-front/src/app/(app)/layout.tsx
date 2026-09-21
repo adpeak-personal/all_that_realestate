@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import LogoMark from '../../components/LogoMark';
-import SiteNav from '../../components/SiteNav';
+import SiteNav, { MobileTabBar } from '../../components/SiteNav';
 
 /**
  * 헤더/푸터.
@@ -16,13 +16,14 @@ export default function MainLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <div className="flex flex-col min-h-screen">
+        // 모바일은 하단 탭(h-16 + safe-area)에 푸터 끝이 가리지 않게 그만큼 띄운다
+        <div className="flex flex-col min-h-screen pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
             <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-sm border-b border-slate-200">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
                     <Link href="/" className="flex items-center gap-2 shrink-0">
                         {/* aria-hidden 이다 — 바로 옆 워드마크를 두 번 읽지 않게 */}
                         <LogoMark size={28} className="text-brand-900" />
-                        <span className="sr-only min-[400px]:not-sr-only text-lg sm:text-xl font-extrabold text-brand-700 tracking-tight">
+                        <span className="text-lg sm:text-xl font-extrabold text-brand-700 tracking-tight">
                             올댓부동산
                         </span>
                     </Link>
@@ -58,6 +59,7 @@ export default function MainLayout({
                     </p>
                 </div>
             </footer>
+            <MobileTabBar />
         </div>
     );
 }
