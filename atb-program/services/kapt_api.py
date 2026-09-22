@@ -64,6 +64,11 @@ def _get(url: str, params: dict, timeout: int = 15) -> dict:
             raise KaptApiError(f"네트워크 오류(재시도 {len(_RETRY_BACKOFF)}회 후): {err}")
         time.sleep(wait)
 
+    # 한도 초과는 HTTP 429 + 본문의 LIMITED_… 로 온다. res.ok 검사보다 먼저 봐야 한다 —
+    # 순서가 반대면 일반 오류로 분류돼 단지마다 '실패' 로 찍히고 수집이 멈추지 않는다
+    # (목록 API 는 한도가 따로라 계속 응답해서, 전 시군구를 헛돌며 전부 실패 처리됐다).
+    if res.status_code == 429 or any(m in res.text[:500] for m in _QUOTA_MARKERS):
+        raise KaptQuotaExceeded(f"일일 호출 한도 초과: HTTP {res.status_code} {res.text[:160]}")
     if not res.ok:
         raise KaptApiError(f"API 응답 오류: {res.status_code} {res.reason}\n{res.text[:200]}")
 
