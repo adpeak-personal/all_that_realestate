@@ -17,6 +17,23 @@ interface Props {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }
 
+/**
+ * 보여줄 페이지 번호. 공고가 수천 건이라 전부 늘어놓으면 번호가 수백 개가 된다.
+ * 처음·끝과 현재 주변 2칸만 두고 사이는 null(…)로 비운다.
+ * 예: page 7 / 505 → [1, null, 5, 6, 7, 8, 9, null, 505]
+ */
+function pageWindow(page: number, total: number): Array<number | null> {
+  const set = new Set<number>([1, total]);
+  for (let n = page - 2; n <= page + 2; n++) if (n >= 1 && n <= total) set.add(n);
+  const sorted = [...set].sort((a, b) => a - b);
+  const out: Array<number | null> = [];
+  sorted.forEach((n, i) => {
+    if (i > 0 && n - sorted[i - 1] > 1) out.push(n - sorted[i - 1] === 2 ? n - 1 : null);
+    out.push(n);
+  });
+  return out;
+}
+
 function one(v: string | string[] | undefined): string | undefined {
   return Array.isArray(v) ? v[0] : v;
 }
@@ -128,20 +145,26 @@ export default async function PresaleListPage({ searchParams }: Props) {
 
         {totalPages > 1 && (
           <nav className="flex justify-center gap-1.5 mt-8" aria-label="페이지">
-            {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
-              <Link
-                key={n}
-                href={href({ page: n > 1 ? String(n) : undefined })}
-                aria-current={n === page ? 'page' : undefined}
-                className={`min-w-[34px] h-[34px] px-2 flex items-center justify-center rounded-md text-sm border ${
-                  n === page
-                    ? 'bg-sale-600 text-white border-sale-600 font-semibold'
-                    : 'border-slate-200 hover:bg-slate-50'
-                }`}
-              >
-                {n}
-              </Link>
-            ))}
+            {pageWindow(page, totalPages).map((n, i) =>
+              n === null ? (
+                <span key={`gap-${i}`} aria-hidden="true" className="px-1 self-center text-slate-400">
+                  …
+                </span>
+              ) : (
+                <Link
+                  key={n}
+                  href={href({ page: n > 1 ? String(n) : undefined })}
+                  aria-current={n === page ? 'page' : undefined}
+                  className={`min-w-[34px] h-[34px] px-2 flex items-center justify-center rounded-md text-sm border tabular-nums ${
+                    n === page
+                      ? 'bg-sale-600 text-white border-sale-600 font-semibold'
+                      : 'border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {n}
+                </Link>
+              ),
+            )}
           </nav>
         )}
       </div>

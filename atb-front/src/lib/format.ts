@@ -25,3 +25,14 @@ export function formatDate(iso: string): string {
 export function toPyeong(m2: number): string {
   return (m2 / 3.3058).toFixed(1);
 }
+
+/**
+ * 분양 공고의 금액 이름.
+ * 공공지원 민간임대·임대주택의 금액은 분양가가 아니라 임대보증금이다.
+ * 같은 칸에 '분양가' 라고 쓰면 59㎡ 가 1.9억으로 보여 크게 오해를 산다.
+ */
+export function presalePriceLabel(houseType?: string | null, rentType?: string | null): string {
+  return (houseType ?? '').includes('임대') || (rentType ?? '').includes('임대')
+    ? '임대보증금'
+    : '분양가';
+}

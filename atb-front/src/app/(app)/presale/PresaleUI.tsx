@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { formatPrice } from '../../../lib/format';
+import { formatPrice, presalePriceLabel } from '../../../lib/format';
 import type { PresaleRow, PresaleStatus } from '../../../service/main/type';
 
 /** 분양 영역 공용 조각. 목록·상세·메인 섹션이 같은 표기를 쓰게 모아 둔다. */
@@ -84,7 +84,7 @@ export function PresaleCard({ item }: { item: PresaleRow }) {
       <dl className="mt-4 pt-4 border-t border-slate-100 space-y-1.5 text-sm">
         {price && (
           <div className="flex justify-between gap-3">
-            <dt className="text-slate-500 shrink-0">분양가</dt>
+            <dt className="text-slate-500 shrink-0">{presalePriceLabel(item.houseType)}</dt>
             <dd className="font-bold text-slate-900 text-right tabular-nums">{price}</dd>
           </div>
         )}

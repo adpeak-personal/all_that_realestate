@@ -947,8 +947,18 @@ export async function listPresales(opts: {
         `${PRESALE_SELECT}
          ${where}
          GROUP BY n.house_manage_no, n.pblanc_no
+         -- 광고 자리(is_featured·sort_weight)가 먼저, 그다음은 사용자가 지금 볼 순서:
+         -- 접수중(마감 임박 순) → 접수예정(곧 시작 순) → 마감(최근 순).
+         -- 시작일 내림차순으로 두면 '지금 청약 가능한 분양' 에 먼 미래 공고가 먼저 뜬다.
          ORDER BY n.is_featured DESC, n.sort_weight DESC,
-                  n.rcept_bgnde IS NULL, n.rcept_bgnde DESC, n.notice_date DESC
+                  CASE WHEN n.rcept_bgnde <= CURDATE() AND n.rcept_endde >= CURDATE() THEN 0
+                       WHEN n.rcept_bgnde > CURDATE() THEN 1
+                       WHEN n.rcept_endde < CURDATE() THEN 2
+                       ELSE 3 END,
+                  CASE WHEN n.rcept_bgnde <= CURDATE() AND n.rcept_endde >= CURDATE()
+                       THEN n.rcept_endde END ASC,
+                  CASE WHEN n.rcept_bgnde > CURDATE() THEN n.rcept_bgnde END ASC,
+                  n.rcept_endde DESC, n.notice_date DESC
          LIMIT ${size} OFFSET ${offset}`,
         params,
     )) as RawPresale[];

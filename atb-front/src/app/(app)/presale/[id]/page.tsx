@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { StatusBadge, daysLeft, formatMoveIn, priceRange } from '../PresaleUI';
 import { fetchPresaleDetail } from '../../../../service/server/api';
-import { formatPrice, toPyeong } from '../../../../lib/format';
+import { formatPrice, toPyeong, presalePriceLabel } from '../../../../lib/format';
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -20,10 +20,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: `${p.houseNm} 분양정보`,
     description:
-      `${where} ${p.houseNm} 청약 일정과 분양가. ` +
+      `${where} ${p.houseNm} 청약 일정과 ${presalePriceLabel(p.houseType, p.rentType)}. ` +
       [
         p.totalHouseholds ? `총 ${p.totalHouseholds.toLocaleString()}세대` : null,
-        price ? `분양가 ${price}` : null,
+        price ? `${presalePriceLabel(p.houseType, p.rentType)} ${price}` : null,
       ]
         .filter(Boolean)
         .join(' · '),
@@ -55,6 +55,7 @@ export default async function PresaleDetailPage({ params }: Props) {
   const where = [p.sido, p.sgg].filter(Boolean).join(' ');
   const left = daysLeft(p.status, p.rceptEndde);
   const price = priceRange(p.minAmount, p.maxAmount);
+  const priceLabel = presalePriceLabel(p.houseType, p.rentType);
 
   const flags = [
     p.specltRdnEarthAt === 'Y' ? '투기과열지구' : null,
@@ -87,7 +88,7 @@ export default async function PresaleDetailPage({ params }: Props) {
 
           {price && (
             <p className="mt-6">
-              <span className="text-sm text-sale-100/70 mr-3">분양가</span>
+              <span className="text-sm text-sale-100/70 mr-3">{priceLabel}</span>
               <span className="text-2xl sm:text-3xl font-bold tabular-nums">{price}</span>
             </p>
           )}
@@ -177,7 +178,7 @@ export default async function PresaleDetailPage({ params }: Props) {
                     <th className="text-right font-medium px-3 py-3">전용면적</th>
                     <th className="text-right font-medium px-3 py-3">일반</th>
                     <th className="text-right font-medium px-3 py-3">특별</th>
-                    <th className="text-right font-medium px-6 py-3">분양가</th>
+                    <th className="text-right font-medium px-6 py-3">{priceLabel}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
