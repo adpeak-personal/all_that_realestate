@@ -9,6 +9,7 @@
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 
 import requests
@@ -34,6 +35,9 @@ _QUOTA_MARKERS = (
     "요청횟수",
 )
 
+# 네트워크 일시 오류 재시도 간격(초)
+_RETRY_BACKOFF = (3, 10, 30)
+
 
 def _get(url: str, params: dict, timeout: int = 15) -> dict:
     """serviceKey 는 이미 인코딩된 값이라 직접 URL 에 붙인다 (apt_api.py 와 동일)."""
@@ -42,7 +46,24 @@ def _get(url: str, params: dict, timeout: int = 15) -> dict:
 
     qs = "&".join(f"{k}={v}" for k, v in params.items())
     full = f"{url}?serviceKey={config.DATA_AUTH_KEY}&{qs}"
-    res = requests.get(full, timeout=timeout)
+
+    # data.go.kr 은 가끔 응답이 늦거나(ReadTimeout) TLS 핸드셰이크에서 끊긴다.
+    # 전국 수집이 몇 시간 도는데 이런 일시 오류 하나로 프로세스가 죽으면 안 되므로
+    # 네트워크 예외·5xx 는 쉬었다 재시도하고, 끝내 안 되면 KaptApiError 로 바꿔
+    # 호출측이 그 단지만 실패로 세고 넘어가게 한다.
+    res = None
+    for wait in (*_RETRY_BACKOFF, None):
+        try:
+            res = requests.get(full, timeout=timeout)
+            if res.status_code < 500:
+                break
+            err = f"HTTP {res.status_code}"
+        except requests.RequestException as e:
+            err = f"{type(e).__name__}: {str(e)[:120]}"
+        if wait is None:
+            raise KaptApiError(f"네트워크 오류(재시도 {len(_RETRY_BACKOFF)}회 후): {err}")
+        time.sleep(wait)
+
     if not res.ok:
         raise KaptApiError(f"API 응답 오류: {res.status_code} {res.reason}\n{res.text[:200]}")
 

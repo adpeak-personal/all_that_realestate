@@ -23,6 +23,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+import time
+
 import requests
 
 import config
@@ -48,6 +50,15 @@ class Coord:
     lat: float          # 위도 (WGS84)
     lng: float          # 경도 (WGS84)
     matched_address: str  # 실제로 매칭된 도로명주소 (검수용)
+
+
+class GeocodeRateLimited(GeocodeError):
+    """E0007 — 짧은 시간에 요청이 몰림. 잠깐 쉬면 풀린다(주소 문제가 아니다)."""
+
+
+# E0007 을 받으면 이만큼 쉬고 다시 묻는다. 셋 다 실패하면 GeocodeError 로 남겨
+# 다음 실행에서 재시도되게 한다.
+_RATE_LIMIT_BACKOFF = (2, 5, 10)
 
 
 class Geocoder(Protocol):
@@ -78,6 +89,8 @@ class JusoGeocoder:
         # E0005: 검색결과 없음 / E0006: 주소를 상세히 입력
         if code in ("E0005", "E0006"):
             raise GeocodeNotFound(f"{where}: [{code}] {msg}")
+        if code == "E0007":  # 짧은 시간 다량 요청
+            raise GeocodeRateLimited(f"{where}: [{code}] {msg}")
         if code in ("E0010", "E0012"):  # 사용량 초과 / 승인키 만료
             raise GeocodeQuotaExceeded(f"{where}: [{code}] {msg}")
         raise GeocodeError(f"{where}: [{code}] {msg}")
@@ -142,9 +155,18 @@ class JusoGeocoder:
         except (KeyError, TypeError, ValueError) as e:
             raise GeocodeError(f"좌표 파싱 실패: {e}") from e
 
+    def _with_backoff(self, fn, *args):
+        """속도 제한(E0007)만 쉬었다 재시도한다. 다른 오류는 그대로 올린다."""
+        for wait in _RATE_LIMIT_BACKOFF:
+            try:
+                return fn(*args)
+            except GeocodeRateLimited:
+                time.sleep(wait)
+        return fn(*args)
+
     def geocode(self, address: str) -> Coord:
-        juso = self._search(address)
-        x, y = self._coord(juso)
+        juso = self._with_backoff(self._search, address)
+        x, y = self._with_backoff(self._coord, juso)
         lng, lat = utmk_to_wgs84(x, y)
         return Coord(lat=lat, lng=lng, matched_address=juso.get("roadAddr", address))
 

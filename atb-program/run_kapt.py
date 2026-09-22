@@ -13,6 +13,7 @@
   python run_kapt.py 11650 --rematch      # 기존 매칭 초기화 후 전량 재매칭
   python run_kapt.py 11650 --no-detail    # 상세정보 호출 생략 (API 호출 절반)
   python run_kapt.py --seoul --sync-only  # 서울 25개 구 전체
+  python run_kapt.py --all                # 전국 활성 시군구 (한도 걸리면 다음날 재실행)
 
 기본: 최근 30일 내 동기화된 단지는 건너뜀(자주 눌러도 신규만 받음).
 
@@ -55,6 +56,10 @@ def main(argv: list[str]):
         # 서울 25개 구 (11110~11740). 거래량이 가장 많아 마스터 우선순위가 높다.
         args = [str(r["sgg_cd"]) for r in db.load_sgg_codes(active_only=True)
                 if 11110 <= int(r["sgg_cd"]) <= 11740]
+    elif "--all" in flags:
+        # 전국 활성 시군구. 서울을 먼저 두어 한도가 끊겨도 거래 많은 곳부터 채운다.
+        codes = [str(r["sgg_cd"]) for r in db.load_sgg_codes(active_only=True)]
+        args = sorted(codes, key=lambda c: (not c.startswith("11"), c))
 
     if not args:
         print(__doc__)
@@ -68,6 +73,7 @@ def main(argv: list[str]):
             n = db.reset_matches(int(sgg))
             print(f"■ {sgg} 매칭 초기화: {n}건")
 
+    failed_sgg: list[str] = []
     for sgg in args:
         if "--match-only" not in flags:
             try:
@@ -79,9 +85,22 @@ def main(argv: list[str]):
                 print(f"  {sgg} 에서 중단. 받은 데이터는 저장됨. "
                       f"한도가 초기화되면 같은 명령을 다시 실행하면 이어서 받는다.")
                 return 2
+            except kapt_api.KaptApiError as e:
+                # 목록 조회가 재시도 후에도 실패 — 이 시군구만 건너뛴다.
+                # 30일 캐시 덕에 다음 실행에서 이 시군구부터 다시 받는다.
+                print()
+                print(f"✗ {sgg} 동기화 실패, 건너뜀: {str(e)[:150]}")
+                failed_sgg.append(sgg)
+                continue
         if "--sync-only" not in flags:
             _match(sgg)
         print()
+
+    if failed_sgg:
+        print(f"■ 동기화 실패 시군구 {len(failed_sgg)}개: {' '.join(failed_sgg)}")
+        print("  같은 명령을 다시 실행하면 이 시군구들만 다시 받는다.")
+        return 3
+    print("■ 전체 완료")
     return 0
 
 

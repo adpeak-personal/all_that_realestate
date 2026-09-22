@@ -30,10 +30,17 @@ def main(argv: list[str]) -> int:
 
     def opt(name: str, default: float) -> float:
         raw = flags.get(name)
-        if not raw or "=" not in raw:
+        if not raw:
             return default
+        # "--limit 5" 와 "--limit=5" 둘 다 받는다.
+        # 예전엔 '=' 형식만 받아서 "--limit 5" 가 조용히 무시되고 전량이 돌았다.
+        if "=" in raw:
+            v = raw.split("=", 1)[1]
+        else:
+            i = argv.index(raw)
+            v = argv[i + 1] if i + 1 < len(argv) else ""
         try:
-            return float(raw.split("=", 1)[1])
+            return float(v)
         except ValueError:
             return default
 
