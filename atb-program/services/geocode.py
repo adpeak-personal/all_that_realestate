@@ -156,13 +156,21 @@ class JusoGeocoder:
             raise GeocodeError(f"좌표 파싱 실패: {e}") from e
 
     def _with_backoff(self, fn, *args):
-        """속도 제한(E0007)만 쉬었다 재시도한다. 다른 오류는 그대로 올린다."""
+        """속도 제한(E0007)·네트워크 끊김은 쉬었다 재시도한다. 다른 오류는 그대로 올린다.
+
+        네트워크 예외(ConnectTimeout 등)를 잡지 않으면 3만 건 도는 중 한 번의 끊김으로
+        프로세스가 죽는다. 끝내 안 되면 GeocodeError 로 바꿔 그 단지만 '오류(3)' 가 되고
+        다음 실행에서 재시도된다.
+        """
         for wait in _RATE_LIMIT_BACKOFF:
             try:
                 return fn(*args)
-            except GeocodeRateLimited:
+            except (GeocodeRateLimited, requests.RequestException):
                 time.sleep(wait)
-        return fn(*args)
+        try:
+            return fn(*args)
+        except requests.RequestException as e:
+            raise GeocodeError(f"네트워크 오류: {type(e).__name__}") from e
 
     def geocode(self, address: str) -> Coord:
         juso = self._with_backoff(self._search, address)
