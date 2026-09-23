@@ -150,9 +150,14 @@ class JusoGeocoder:
         if not items:
             raise GeocodeNotFound("좌표조회 결과 없음")
 
+        # 주소는 찾았는데 좌표가 빈 문자열로 오는 곳이 있다(지번은 있으나 좌표 미구축).
+        # 오류로 두면 매일 예약 실행마다 똑같이 실패하므로 '못찾음' 으로 확정한다.
+        x, y = items[0].get("entX"), items[0].get("entY")
+        if x in (None, "") or y in (None, ""):
+            raise GeocodeNotFound(f"좌표 없음(entX/entY 비어 있음): {items[0].get('roadAddr', '')}")
         try:
-            return float(items[0]["entX"]), float(items[0]["entY"])
-        except (KeyError, TypeError, ValueError) as e:
+            return float(x), float(y)
+        except (TypeError, ValueError) as e:
             raise GeocodeError(f"좌표 파싱 실패: {e}") from e
 
     def _with_backoff(self, fn, *args):

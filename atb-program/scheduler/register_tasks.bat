@@ -6,7 +6,9 @@ REM  Register AllThat collection jobs in Windows Task Scheduler.
 REM  New PC: clone code + create .venv + copy .env + prepare MySQL,
 REM  then double-click this file. Re-running overwrites the same tasks.
 REM
-REM    01:00  K-apt nationwide sync  (data.go.kr daily quota resets at midnight)
+REM    09:00  K-apt nationwide sync  (quota resets at midnight, but the portal
+REM                                  returned HTTP_ERROR for every call at 01:00,
+REM                                  so run it in daytime instead)
 REM    04:00  Geocode                (new complexes + retry errors)
 REM    06:00  Applyhome presale      (latest notices)
 REM
@@ -31,7 +33,7 @@ if not exist "%ROOT%\.env" (
   exit /b 1
 )
 
-call :reg "AllThat\KaptSync"    01:00 kapt    || goto :fail
+call :reg "AllThat\KaptSync"    09:00 kapt    || goto :fail
 call :reg "AllThat\Geocode"     04:00 geocode || goto :fail
 call :reg "AllThat\PresaleSync" 06:00 presale || goto :fail
 

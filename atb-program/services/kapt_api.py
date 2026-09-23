@@ -28,6 +28,10 @@ class KaptQuotaExceeded(KaptApiError):
     """일일 호출 한도 초과. 재시도해도 소용없으므로 호출측은 즉시 중단해야 한다."""
 
 
+class KaptTransient(KaptApiError):
+    """잠시 후 다시 부르면 되는 오류. _get 안에서만 쓰고 밖으로는 나가지 않는다."""
+
+
 # 공공데이터포털이 한도 초과 시 돌려주는 코드/문구
 _QUOTA_MARKERS = (
     "LIMITED_NUMBER_OF_SERVICE_REQUESTS_EXCEEDS",
@@ -35,11 +39,36 @@ _QUOTA_MARKERS = (
     "요청횟수",
 )
 
-# 네트워크 일시 오류 재시도 간격(초)
+# 일시 오류 재시도 간격(초)
 _RETRY_BACKOFF = (3, 10, 30)
+
+# HTTP 200 으로 오는 포털 쪽 일시 장애 표식
+_TRANSIENT_MARKERS = ("HTTP_ERROR", "SERVICE_TIMEOUT", "INTERNAL_SERVER_ERROR")
 
 
 def _get(url: str, params: dict, timeout: int = 15) -> dict:
+    """요청 1회 + 일시 오류 재시도.
+
+    일시 오류는 세 가지 모습으로 온다:
+      - requests 예외 (ReadTimeout, TLS 끊김)
+      - HTTP 5xx
+      - HTTP 200 인데 본문이 'HTTP_ERROR' (포털 쪽 야간 장애에서 이 형태로 왔다)
+    셋 다 쉬었다 다시 부르고, 끝내 안 되면 KaptApiError 로 올려 호출측이 그 단지·
+    시군구만 실패로 세고 넘어가게 한다.
+    """
+    last = ""
+    for wait in (*_RETRY_BACKOFF, None):
+        try:
+            return _get_once(url, params, timeout)
+        except KaptTransient as e:
+            last = str(e)
+            if wait is None:
+                raise KaptApiError(f"일시 오류가 계속됨(재시도 {len(_RETRY_BACKOFF)}회): {last}") from e
+            time.sleep(wait)
+    raise KaptApiError(f"일시 오류: {last}")   # 도달하지 않는다
+
+
+def _get_once(url: str, params: dict, timeout: int = 15) -> dict:
     """serviceKey 는 이미 인코딩된 값이라 직접 URL 에 붙인다 (apt_api.py 와 동일)."""
     if not config.DATA_AUTH_KEY:
         raise KaptApiError(f"DATA_AUTH_KEY 가 설정되지 않았습니다 ({config.ENV_PATH} 확인).")
@@ -47,22 +76,12 @@ def _get(url: str, params: dict, timeout: int = 15) -> dict:
     qs = "&".join(f"{k}={v}" for k, v in params.items())
     full = f"{url}?serviceKey={config.DATA_AUTH_KEY}&{qs}"
 
-    # data.go.kr 은 가끔 응답이 늦거나(ReadTimeout) TLS 핸드셰이크에서 끊긴다.
-    # 전국 수집이 몇 시간 도는데 이런 일시 오류 하나로 프로세스가 죽으면 안 되므로
-    # 네트워크 예외·5xx 는 쉬었다 재시도하고, 끝내 안 되면 KaptApiError 로 바꿔
-    # 호출측이 그 단지만 실패로 세고 넘어가게 한다.
-    res = None
-    for wait in (*_RETRY_BACKOFF, None):
-        try:
-            res = requests.get(full, timeout=timeout)
-            if res.status_code < 500:
-                break
-            err = f"HTTP {res.status_code}"
-        except requests.RequestException as e:
-            err = f"{type(e).__name__}: {str(e)[:120]}"
-        if wait is None:
-            raise KaptApiError(f"네트워크 오류(재시도 {len(_RETRY_BACKOFF)}회 후): {err}")
-        time.sleep(wait)
+    try:
+        res = requests.get(full, timeout=timeout)
+    except requests.RequestException as e:
+        raise KaptTransient(f"{type(e).__name__}: {str(e)[:120]}") from e
+    if res.status_code >= 500:
+        raise KaptTransient(f"HTTP {res.status_code}")
 
     # 한도 초과는 HTTP 429 + 본문의 LIMITED_… 로 온다. res.ok 검사보다 먼저 봐야 한다 —
     # 순서가 반대면 일반 오류로 분류돼 단지마다 '실패' 로 찍히고 수집이 멈추지 않는다
@@ -83,6 +102,8 @@ def _get(url: str, params: dict, timeout: int = 15) -> dict:
         msg = f"{cmm.get('errMsg')} / {cmm.get('returnAuthMsg')}"
         if any(m in str(msg) for m in _QUOTA_MARKERS):
             raise KaptQuotaExceeded(f"일일 호출 한도 초과: {msg}")
+        if any(m in str(msg) for m in _TRANSIENT_MARKERS):
+            raise KaptTransient(f"API 일시 오류: {msg}")
         raise KaptApiError(f"API 오류: {msg}")
 
     body = (data.get("response") or {}).get("body")
