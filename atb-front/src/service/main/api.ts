@@ -1,5 +1,5 @@
 // 백엔드 fetch 호출 (raw). React Query 훅은 queries.ts 참고.
-// next.config.ts 의 rewrites 로 /api/* → 백엔드(6050) 로 프록시된다.
+// next.config.ts 의 rewrites 로 /api/* → 백엔드(4030) 로 프록시된다.
 import type {
   AptDetail,
   DealListParams,

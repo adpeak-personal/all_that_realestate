@@ -25,7 +25,7 @@ import type {
   TrendResult,
 } from '../main/type';
 
-const BASE = process.env.API_BASE_URL ?? 'http://localhost:6050';
+const BASE = process.env.API_BASE_URL ?? 'http://localhost:4030';
 
 /** 조회 결과 캐시 (초). 실거래는 하루 단위로 갱신되므로 짧게 잡을 이유가 없다. */
 const REVALIDATE = 600;

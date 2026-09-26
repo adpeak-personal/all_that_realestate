@@ -6,7 +6,7 @@ const server = Fastify({ logger: true });
 
 server.register(routes, { prefix: '/api' });
 
-const PORT = Number(process.env.PORT || 4000);
+const PORT = Number(process.env.PORT || 4030);
 
 const start = async () => {
     try {

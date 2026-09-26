@@ -8,7 +8,7 @@ const MAX_APTS = 49_000;
 export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.SITE_URL ?? 'http://localhost:6060').replace(/\/$/, '');
+  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
   const staticPages: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },

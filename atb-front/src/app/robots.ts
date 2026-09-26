@@ -1,7 +1,7 @@
 import type { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.SITE_URL ?? 'http://localhost:6060').replace(/\/$/, '');
+  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
   return {
     rules: { userAgent: '*', allow: '/' },
