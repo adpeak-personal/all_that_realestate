@@ -8,23 +8,57 @@ DB 없이도 레코드 조립을 검증할 수 있게 build_complex_record() 는
 """
 from __future__ import annotations
 
+import pymysql
+
 from services import kapt_api
 from services.apt_matcher import parse_addr_jibun
 
 
 # ─── 파싱 헬퍼 ────────────────────────────────────────────────────────────────
+# 컬럼이 담을 수 있는 한계. 넘는 값은 어차피 원본이 잘못된 것이라 NULL 로 둔다
+# (원본은 raw 에 남는다). 한 단지의 이상한 숫자 때문에 전국 수집이 죽으면 안 된다.
+_INT_MAX = 2_147_483_647          # MySQL INT
+_AREA_MAX = 10 ** 10              # DECIMAL(12,2)
+
+
+def _save(rows: list[dict]) -> tuple[int, int]:
+    """한 번에 저장하고, DB 가 거부하면 한 건씩 다시 넣어 나쁜 행만 버린다.
+
+    executemany 는 행 하나가 컬럼 범위를 벗어나면 배치 전체가 실패한다.
+    실제로 어떤 단지의 연면적 값 하나 때문에 전국 수집이 사흘 동안 같은 자리에서
+    죽었다. 저장 실패는 그 단지만 포기하고 나머지는 남긴다. → (저장수, 버린수)
+    """
+    from services import db
+
+    try:
+        return db.upsert_kapt_complexes(rows), 0
+    except pymysql.MySQLError:
+        saved = bad = 0
+        for r in rows:
+            try:
+                saved += db.upsert_kapt_complexes([r])
+            except pymysql.MySQLError as e:
+                bad += 1
+                print(f"\n  ! 저장 실패, 건너뜀: {r.get('kapt_name')} ({r.get('kapt_code')}) — {str(e)[:90]}")
+        return saved, bad
+
+
 def _to_int(v):
     try:
-        return int(float(str(v).replace(",", "").strip()))
+        n = int(float(str(v).replace(",", "").strip()))
     except (ValueError, TypeError):
         return None
+    return n if abs(n) <= _INT_MAX else None
 
 
-def _to_float(v):
+def _to_float(v, max_abs: float | None = None):
     try:
-        return float(str(v).replace(",", "").strip())
+        f = float(str(v).replace(",", "").strip())
     except (ValueError, TypeError):
         return None
+    if max_abs is not None and abs(f) >= max_abs:
+        return None
+    return f
 
 
 def _to_date(v):
@@ -130,7 +164,7 @@ def build_complex_record(item: kapt_api.KaptListItem, bass: dict, dtl: dict) -> 
         "hall_type": _clean(bass.get("codeHallNm")),
         "sale_type": _clean(bass.get("codeSaleNm")),
         "builder": _clean(bass.get("kaptBcompany")),
-        "total_area": _to_float(bass.get("kaptTarea")),
+        "total_area": _to_float(bass.get("kaptTarea"), max_abs=_AREA_MAX),
         **detail_fields(dtl),
         "raw": {"bass": bass, "dtl": dtl},
     }
@@ -171,13 +205,13 @@ def sync_sigungu(sgg_cd: str, with_detail: bool = True,
         except kapt_api.KaptQuotaExceeded:
             # 한도 초과는 재시도해도 소용없다. 여기까지 받은 건 저장하고 중단.
             if rows:
-                db.upsert_kapt_complexes(rows)
+                _save(rows)
             raise
         except kapt_api.KaptApiError:
             errors += 1
         if on_progress:
             on_progress(i + 1, total, it.kaptName)
 
-    saved = db.upsert_kapt_complexes(rows) if rows else 0
+    saved, bad = _save(rows) if rows else (0, 0)
     return {"sgg_cd": sgg_cd, "total": total, "fetched": len(rows),
-            "skipped": skipped, "errors": errors, "saved": saved}
+            "skipped": skipped, "errors": errors + bad, "saved": saved}

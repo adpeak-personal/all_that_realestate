@@ -39,8 +39,10 @@ _QUOTA_MARKERS = (
     "요청횟수",
 )
 
-# 일시 오류 재시도 간격(초)
-_RETRY_BACKOFF = (3, 10, 30)
+# 일시 오류 재시도 간격(초).
+# 포털이 HTTP_ERROR 를 간헐적으로 뱉는 구간이 있다(측정: 4회 중 3회 실패).
+# 3회로는 한 시군구가 통째로 건너뛰어져서, 넉넉히 다섯 번까지 기다려 본다.
+_RETRY_BACKOFF = (3, 10, 30, 60, 120)
 
 # HTTP 200 으로 오는 포털 쪽 일시 장애 표식
 _TRANSIENT_MARKERS = ("HTTP_ERROR", "SERVICE_TIMEOUT", "INTERNAL_SERVER_ERROR")
