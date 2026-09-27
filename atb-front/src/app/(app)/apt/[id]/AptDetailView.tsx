@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import PriceTrendChart from '../../../../components/PriceTrendChart';
+import AptMap from '../../../../components/AptMap';
 import { useAptDetail, useDeals, usePriceTrend } from '../../../../service/main/queries';
 import type {
   AptDetail,
@@ -153,6 +154,27 @@ function FacilityGroup({ title, raw }: { title: string; raw: string | null }) {
 }
 
 /** 교통·학군·편의. K-apt 상세가 단지마다 채움률이 달라 통째로 없을 수 있다. */
+/**
+ * 위치 지도. 좌표가 없는 단지(주소로 못 찾은 150여 곳)는 아예 렌더하지 않는다 —
+ * 빈 회색 상자를 두는 것보다 없는 편이 낫다.
+ */
+function MapPanel({ apt }: { apt: AptDetail }) {
+  if (apt.lat == null || apt.lng == null) return null;
+
+  const addr = [apt.sido, apt.sgg, apt.umdNm, apt.jibun].filter(Boolean).join(' ');
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-100 flex items-baseline justify-between gap-3">
+        <h2 className="text-lg font-bold text-slate-900">위치</h2>
+        <p className="text-sm text-slate-500 truncate">{addr}</p>
+      </div>
+      <div className="h-[280px] sm:h-[360px]">
+        <AptMap lat={apt.lat} lng={apt.lng} name={apt.aptNm} />
+      </div>
+    </div>
+  );
+}
+
 function LocationPanel({ apt }: { apt: AptDetail }) {
   const k = apt.kapt;
   if (!k) return null;
@@ -252,6 +274,8 @@ export default function AptDetailView({
 
         <div className="space-y-6">
           <KaptPanel apt={apt} />
+
+          <MapPanel apt={apt} />
 
           <LocationPanel apt={apt} />
 
