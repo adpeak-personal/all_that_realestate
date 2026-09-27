@@ -140,3 +140,12 @@ export function fetchPresales(params: {
 export function fetchPresaleDetail(id: string) {
   return get<PresaleDetail>(`/api/presales/${encodeURIComponent(id)}`, 300);
 }
+
+/**
+ * 운영 설정. 어드민에서 지도를 끄면 곧 반영돼야 하므로 30초만 캐시한다.
+ * 백엔드가 응답하지 않으면 켜진 것으로 본다 — 설정 조회 실패로 지도가 사라지면
+ * 원인을 찾기 어렵다.
+ */
+export async function fetchSettings(): Promise<{ mapEnabled: boolean }> {
+  return (await get<{ mapEnabled: boolean }>('/api/settings', 30)) ?? { mapEnabled: true };
+}

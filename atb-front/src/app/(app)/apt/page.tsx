@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { Pager, SggChips, SidoTabs, SortSelect } from './AptBrowser';
 import AptListMap from '../../../components/AptListMap';
 import { SORT_LABELS } from '../../../lib/apt-sort';
-import { fetchApts, fetchSggBreakdown } from '../../../service/server/api';
+import { fetchApts, fetchSettings, fetchSggBreakdown } from '../../../service/server/api';
 import { formatPrice, toPyeong } from '../../../lib/format';
 import type { AptSort } from '../../../service/main/type';
 
@@ -60,14 +60,16 @@ export default async function AptListPage({ searchParams }: Props) {
   const { q, sido, sggCd, sort, page } = await readParams(searchParams);
 
   // 검색어가 있으면 지역을 가리지 않고 전국에서 찾는다.
-  const [breakdown, result] = await Promise.all([
+  const [breakdown, result, settings] = await Promise.all([
     fetchSggBreakdown(sido),
     fetchApts(
       q
         ? { q, sort, page, size: SIZE }
         : { sido, sggCd: sggCd ?? undefined, sort, page, size: SIZE },
     ),
+    fetchSettings(),
   ]);
+  const mapEnabled = settings.mapEnabled;
 
   const sggName = sggCd ? breakdown?.items.find((i) => i.code === sggCd)?.sgg : null;
   const where = q ? `'${q}' 검색` : sggName ? `${sido} ${sggName}` : `${sido} 전체`;
@@ -125,8 +127,8 @@ export default async function AptListPage({ searchParams }: Props) {
           <SortSelect value={sort} />
         </div>
 
-        {/* 지도 — 이 페이지에 실린 단지의 핀. 목록 순번과 핀 번호가 같다 */}
-        {result && result.items.length > 0 && (
+        {/* 지도 — 이 페이지에 실린 단지의 핀. 어드민에서 끄면 나오지 않는다 */}
+        {mapEnabled && result && result.items.length > 0 && (
           <AptListMap items={result.items} />
         )}
 

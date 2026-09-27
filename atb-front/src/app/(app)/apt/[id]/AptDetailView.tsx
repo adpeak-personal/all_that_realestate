@@ -108,6 +108,8 @@ interface ViewProps {
   initialDetail: AptDetail;
   initialTrend?: TrendResult;
   initialDeals?: DealListResult;
+  /** 어드민의 지도 스위치. 꺼져 있으면 지도 패널을 아예 렌더하지 않는다 */
+  mapEnabled: boolean;
 }
 
 /**
@@ -158,8 +160,9 @@ function FacilityGroup({ title, raw }: { title: string; raw: string | null }) {
  * 위치 지도. 좌표가 없는 단지(주소로 못 찾은 150여 곳)는 아예 렌더하지 않는다 —
  * 빈 회색 상자를 두는 것보다 없는 편이 낫다.
  */
-function MapPanel({ apt }: { apt: AptDetail }) {
-  if (apt.lat == null || apt.lng == null) return null;
+function MapPanel({ apt, enabled }: { apt: AptDetail; enabled: boolean }) {
+  // 어드민에서 지도를 끄면 패널 자체를 내린다 (네이버 호출도 함께 멈춘다)
+  if (!enabled || apt.lat == null || apt.lng == null) return null;
 
   const addr = [apt.sido, apt.sgg, apt.umdNm, apt.jibun].filter(Boolean).join(' ');
   return (
@@ -222,6 +225,7 @@ export default function AptDetailView({
   initialDetail,
   initialTrend,
   initialDeals,
+  mapEnabled,
 }: ViewProps) {
   const [page, setPage] = useState(1);
   // 선택한 전용면적(표시 문자열, 예: '84.70'). null 이면 전체.
@@ -278,7 +282,7 @@ export default function AptDetailView({
         <div className="space-y-6">
           <KaptPanel apt={apt} />
 
-          <MapPanel apt={apt} />
+          <MapPanel apt={apt} enabled={mapEnabled} />
 
           <LocationPanel apt={apt} />
 

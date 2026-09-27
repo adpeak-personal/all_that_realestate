@@ -1,3 +1,4 @@
+import { getSettings } from '../lib/admin-queries';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
     latestDealMonth,
@@ -22,6 +23,20 @@ import type { AptSort } from '../lib/queries';
 // 공공API 수집 / K-apt 동기화 / 매칭 / 이미지 검수는 atb-program(Python) 담당.
 export default async function routes(fastify: FastifyInstance, opts: FastifyPluginOptions) {
     fastify.get('/health', async () => ({ status: 'ok' }));
+
+    /**
+     * 사이트 운영 설정. 화면이 지도를 그릴지 말지 정하는 데 쓰므로 공개다.
+     * 어드민에서 끄면 곧 반영되어야 해서 프런트에서 짧게(30초) 캐시한다.
+     */
+    fastify.get('/settings', async (_request, reply) => {
+        try {
+            return await getSettings();
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '설정을 불러오지 못했습니다.' };
+        }
+    });
 
     /** 시군구 코드 목록 — GET /api/sgg */
     fastify.get('/sgg', async (request, reply) => {

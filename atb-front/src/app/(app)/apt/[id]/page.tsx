@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import AptDetailView from './AptDetailView';
-import { fetchAptDetail, fetchDeals, fetchPriceTrend } from '../../../../service/server/api';
+import { fetchAptDetail, fetchDeals, fetchPriceTrend, fetchSettings } from '../../../../service/server/api';
 import { formatPrice } from '../../../../lib/format';
 
 // 서버 컴포넌트. 데이터를 여기서 받아 뷰에 넘겨야 첫 HTML 에 내용이 담긴다.
@@ -48,9 +48,10 @@ export default async function AptDetailPage({ params }: Props) {
   if (!apt) notFound();
 
   // 차트·거래이력은 없어도 페이지는 떠야 하므로 실패를 삼킨다(내부에서 null 반환).
-  const [trend, deals] = await Promise.all([
+  const [trend, deals, settings] = await Promise.all([
     fetchPriceTrend({ aptId, months: 12 }),
     fetchDeals({ aptId, page: 1, size: 20 }),
+    fetchSettings(),
   ]);
 
   const latest = deals?.items[0];
@@ -95,6 +96,7 @@ export default async function AptDetailPage({ params }: Props) {
         initialDetail={apt}
         initialTrend={trend ?? undefined}
         initialDeals={deals ?? undefined}
+        mapEnabled={settings.mapEnabled}
       />
     </>
   );

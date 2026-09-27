@@ -1,10 +1,12 @@
 import 'dotenv/config';
 import Fastify from 'fastify';
 import routes from './routes/api';
+import adminRoutes from './routes/admin';
 
 const server = Fastify({ logger: true });
 
 server.register(routes, { prefix: '/api' });
+server.register(adminRoutes, { prefix: '/api' });
 
 const PORT = Number(process.env.PORT || 4030);
 

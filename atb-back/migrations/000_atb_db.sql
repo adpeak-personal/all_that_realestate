@@ -590,3 +590,20 @@ CREATE TABLE IF NOT EXISTS `presale_types` (
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   COMMENT='분양 주택형별 공급 정보';
+
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 사이트 설정 (어드민에서 바꾸는 운영 스위치)
+--
+-- 코드를 고치고 다시 배포하지 않아도 켜고 끌 수 있어야 하는 것들을 여기 둔다.
+-- 지금은 지도 표시가 그렇다 — 네이버 무료 한도가 위험해지면 즉시 꺼야 한다.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `site_settings` (
+  `key`        VARCHAR(50)  NOT NULL COMMENT '설정 이름 (예: map_enabled)',
+  `value`      VARCHAR(500) NOT NULL COMMENT '값. 불리언은 "1"/"0"',
+  `updated_at` TIMESTAMP    DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  COMMENT='운영 설정';
+
+INSERT IGNORE INTO `site_settings` (`key`, `value`) VALUES ('map_enabled', '1');
