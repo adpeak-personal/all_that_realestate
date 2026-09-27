@@ -47,7 +47,14 @@ export default function AptListMap({
         const map = new maps.Map(boxRef.current, {
           center: new maps.LatLng(first.lat as number, first.lng as number),
           zoom: 14,
+          // 휠 확대는 끈다 — 페이지를 스크롤하다 지도 위에서 멈추면 지도가 확대돼 버린다.
+          // 대신 버튼을 띄우고, 더블클릭·모바일 두 손가락 확대는 그대로 쓴다.
           scrollWheel: false,
+          zoomControl: true,
+          zoomControlOptions: {
+            style: maps.ZoomControlStyle.SMALL,
+            position: maps.Position.TOP_RIGHT,
+          },
         }) as { fitBounds: (b: unknown) => void };
 
         const bounds = new maps.LatLngBounds();

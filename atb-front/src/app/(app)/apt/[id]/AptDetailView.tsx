@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import PriceTrendChart from '../../../../components/PriceTrendChart';
 import AptMap from '../../../../components/AptMap';
 import { useAptDetail, useDeals, usePriceTrend } from '../../../../service/main/queries';
@@ -244,12 +244,8 @@ export default function AptDetailView({
   const apt = detailQuery.data ?? initialDetail;
   const deals = dealsQuery.data;
 
-  // 59.9772 와 59.9818 처럼 소수점만 다른 값은 소수 2자리로는 같은 글자가 되어
-  // 똑같은 칩이 두 개 생긴다. 표시 문자열 기준으로 중복을 없앤다.
-  const areaChips = useMemo(
-    () => [...new Set((apt?.excluAreas ?? []).map((a) => a.toFixed(2)))],
-    [apt],
-  );
+  // 서버가 소수 2자리로 묶어 주므로 여기서 다시 중복을 없앨 필요가 없다.
+  const areaRows = apt?.areaStats ?? [];
   const totalPages = deals ? Math.max(Math.ceil(deals.total / deals.size), 1) : 1;
 
   // 서버가 initialDetail 을 넘기므로 로딩/미존재 분기는 여기서 필요 없다
@@ -293,36 +289,71 @@ export default function AptDetailView({
             subtitle="최근 12개월. 거래가 없던 달은 선이 끊깁니다."
           />
 
-          {/* ── 거래된 전용면적 ── */}
-          {areaChips.length > 0 && (
-            <div className="bg-white rounded-2xl border border-slate-200 p-6">
-              <h2 className="text-lg font-bold text-slate-900 mb-1">거래된 전용면적</h2>
-              <p className="text-sm text-slate-500 mb-4">
-                누르면 아래 거래 이력을 그 면적만 보여줍니다. 다시 누르면 전체로 돌아갑니다.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {areaChips.map((a) => {
-                  const on = area === a;
+          {/* ── 면적별 시세 ── */}
+          {areaRows.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+              <div className="px-4 sm:px-6 py-4 border-b border-slate-100">
+                <h2 className="text-lg font-bold text-slate-900">면적별 시세</h2>
+                <p className="text-sm text-slate-500 mt-0.5">
+                  수집 기간의 실거래 기준. 줄을 누르면 아래 거래 이력이 그 면적만 남습니다.
+                </p>
+              </div>
+
+              <ul className="divide-y divide-slate-100">
+                {areaRows.map((row) => {
+                  const key = row.area.toFixed(2);
+                  const on = area === key;
                   return (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => pickArea(a)}
-                      aria-pressed={on}
-                      className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
-                        on
-                          ? 'bg-brand-600 text-white'
-                          : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
-                      }`}
-                    >
-                      {a}㎡
-                      <span className={`ml-1.5 text-xs ${on ? 'text-brand-100' : 'text-brand-500'}`}>
-                        {toPyeong(Number(a))}평
-                      </span>
-                    </button>
+                    <li key={key}>
+                      <button
+                        type="button"
+                        onClick={() => pickArea(key)}
+                        aria-pressed={on}
+                        className={`w-full flex items-center gap-3 px-4 sm:px-6 py-3 text-left transition-colors ${
+                          on ? 'bg-brand-50' : 'hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="w-[104px] sm:w-[128px] shrink-0">
+                          <span
+                            className={`block font-semibold tabular-nums ${
+                              on ? 'text-brand-700' : 'text-slate-800'
+                            }`}
+                          >
+                            {key}㎡
+                          </span>
+                          <span className="block text-xs text-slate-400 tabular-nums">
+                            {toPyeong(row.area)}평 · {row.dealCount.toLocaleString()}건
+                          </span>
+                        </span>
+
+                        {/* 최저 ~ 최고. 한 건뿐인 면적은 범위가 아니라 한 값만 보여준다 */}
+                        <span className="min-w-0 flex-1 text-right">
+                          {row.minAmount === row.maxAmount ? (
+                            <span className="font-bold text-slate-900 tabular-nums">
+                              {formatPrice(row.minAmount)}
+                            </span>
+                          ) : (
+                            <>
+                              <span className="text-sm text-down tabular-nums">
+                                {formatPrice(row.minAmount)}
+                              </span>
+                              <span className="text-slate-300 mx-1.5">~</span>
+                              <span className="text-sm font-bold text-up tabular-nums">
+                                {formatPrice(row.maxAmount)}
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    </li>
                   );
                 })}
-              </div>
+              </ul>
+              <p className="px-4 sm:px-6 py-2.5 text-xs text-slate-400 border-t border-slate-100">
+                <span className="text-down">최저</span>
+                <span className="mx-1">·</span>
+                <span className="text-up">최고</span> 거래금액입니다. 해제된 거래는 뺐습니다.
+              </p>
             </div>
           )}
 

@@ -66,6 +66,14 @@ export interface DealListParams {
   size?: number;
 }
 
+export interface AreaStat {
+  /** 전용면적 ㎡, 소수 2자리 */
+  area: number;
+  dealCount: number;
+  minAmount: number;  // 만원
+  maxAmount: number;  // 만원
+}
+
 /** 단지 상세. kapt 는 K-apt 매칭이 된 단지만 채워진다. */
 export interface AptDetail {
   id: number;
@@ -77,6 +85,8 @@ export interface AptDetail {
   buildYear: number | null;
   thumbnailUrl: string | null;
   excluAreas: number[];
+  /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
+  areaStats: AreaStat[];
   matchStatus: number;
   /** WGS84. 지오코딩 전이면 null */
   lat: number | null;

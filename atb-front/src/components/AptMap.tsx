@@ -50,8 +50,14 @@ export default function AptMap({
         const map = new maps.Map(mapBox.current, {
           center,
           zoom,
-          // 모바일에서 페이지를 스크롤하다 지도 위에서 멈추는 일이 없게
+          // 모바일에서 페이지를 스크롤하다 지도 위에서 멈추는 일이 없게 휠 확대는 끄고,
+          // 대신 확대/축소 버튼을 띄운다
           scrollWheel: false,
+          zoomControl: true,
+          zoomControlOptions: {
+            style: maps.ZoomControlStyle.SMALL,
+            position: maps.Position.TOP_RIGHT,
+          },
         });
         new maps.Marker({ position: center, map, title: name });
       })

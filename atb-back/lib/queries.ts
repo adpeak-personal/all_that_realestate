@@ -315,6 +315,8 @@ export interface AptDetail {
     buildYear: number | null;
     thumbnailUrl: string | null;
     excluAreas: number[];
+    /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
+    areaStats: AreaStat[];
     matchStatus: number;
     /** WGS84. 지오코딩 전이면 null */
     lat: number | null;
@@ -346,6 +348,14 @@ export interface AptDetail {
 }
 
 /** 단지 상세 — apartments + K-apt 매칭 정보 JOIN. 없으면 null. */
+export interface AreaStat {
+    /** 전용면적 ㎡, 소수 2자리. 거래 이력 필터(area)와 같은 기준 */
+    area: number;
+    dealCount: number;
+    minAmount: number;   // 만원
+    maxAmount: number;   // 만원
+}
+
 export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     const rows = (await query(
         `SELECT a.id, a.apt_nm, a.umd_nm, a.jibun, a.build_year,
@@ -382,6 +392,26 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     }
     areas.sort((a, b) => a - b);
 
+    // 면적별 최저·최고. 화면의 면적 칩과 같은 기준(소수 2자리)으로 묶는다.
+    const statRows = (await query(
+        `SELECT ROUND(d.exclu_use_ar, 2) AS area,
+                COUNT(*)            AS deal_count,
+                MIN(d.deal_amount)  AS min_amount,
+                MAX(d.deal_amount)  AS max_amount
+           FROM apartment_deals d
+          WHERE d.apt_id = ? AND ${NOT_CANCELED}
+          GROUP BY area
+          ORDER BY area`,
+        [aptId],
+    )) as Array<Record<string, any>>;
+
+    const areaStats: AreaStat[] = statRows.map((x) => ({
+        area: Number(x.area),
+        dealCount: Number(x.deal_count),
+        minAmount: Number(x.min_amount),
+        maxAmount: Number(x.max_amount),
+    }));
+
     return {
         id: r.id,
         aptNm: r.apt_nm,
@@ -392,6 +422,7 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         buildYear: r.build_year ?? null,
         thumbnailUrl: r.thumbnail_url ?? null,
         excluAreas: areas,
+        areaStats,
         matchStatus: r.match_status,
         // DECIMAL 은 드라이버가 문자열로 준다
         lat: r.lat === null || r.lat === undefined ? null : Number(r.lat),

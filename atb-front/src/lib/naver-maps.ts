@@ -17,6 +17,8 @@ export interface NaverMaps {
   LatLngBounds: new () => unknown;
   Point: new (x: number, y: number) => unknown;
   Size: new (w: number, h: number) => unknown;
+  Position: Record<string, number>;
+  ZoomControlStyle: Record<string, number>;
   Event: {
     addListener: (
       target: NaverEventTarget,
