@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { loadNaverMaps, NAVER_MAP_KEY_ID } from '../lib/naver-maps';
 import { useInView } from '../lib/use-in-view';
+import { useSiteSettings } from '../lib/use-site-settings';
 
 /**
  * 단지 목록 지도. 현재 페이지에 실린 단지들만 핀으로 찍는다.
@@ -20,7 +21,17 @@ export interface MapPin {
   lng: number | null;
 }
 
-export default function AptListMap({ items }: { items: MapPin[] }) {
+export default function AptListMap({
+  items,
+  enabled = true,
+}: {
+  items: MapPin[];
+  /** 서버가 읽은 지도 스위치. 깜빡임을 막는 초기값이고, 판단은 아래에서 다시 한다 */
+  enabled?: boolean;
+}) {
+  const settings = useSiteSettings({ mapEnabled: enabled });
+  const mapOn = settings.data?.mapEnabled ?? enabled;
+
   const { ref: viewRef, inView } = useInView<HTMLDivElement>();
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +40,7 @@ export default function AptListMap({ items }: { items: MapPin[] }) {
   const missing = items.length - withCoord.length;
 
   useEffect(() => {
-    if (!NAVER_MAP_KEY_ID || withCoord.length === 0 || !inView) return;
+    if (!NAVER_MAP_KEY_ID || withCoord.length === 0 || !inView || !mapOn) return;
     let cancelled = false;
     const cleanups: Array<() => void> = [];
 
@@ -96,9 +107,9 @@ export default function AptListMap({ items }: { items: MapPin[] }) {
     };
     // items 는 페이지가 바뀔 때만 갈린다. 배열 자체를 의존성으로 두면 매 렌더 재생성된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.map((i) => i.id).join(','), inView]);
+  }, [items.map((i) => i.id).join(','), inView, mapOn]);
 
-  if (!NAVER_MAP_KEY_ID || withCoord.length === 0) return null;
+  if (!NAVER_MAP_KEY_ID || withCoord.length === 0 || !mapOn) return null;
 
   return (
     <div ref={viewRef} className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">

@@ -128,8 +128,8 @@ export default async function AptListPage({ searchParams }: Props) {
         </div>
 
         {/* 지도 — 이 페이지에 실린 단지의 핀. 어드민에서 끄면 나오지 않는다 */}
-        {mapEnabled && result && result.items.length > 0 && (
-          <AptListMap items={result.items} />
+        {result && result.items.length > 0 && (
+          <AptListMap items={result.items} enabled={mapEnabled} />
         )}
 
         {/* 단지 목록 */}

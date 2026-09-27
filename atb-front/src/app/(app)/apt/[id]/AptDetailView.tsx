@@ -5,6 +5,7 @@ import { useState } from 'react';
 import PriceTrendChart from '../../../../components/PriceTrendChart';
 import AptMap from '../../../../components/AptMap';
 import { useAptDetail, useDeals, usePriceTrend } from '../../../../service/main/queries';
+import { useSiteSettings } from '../../../../lib/use-site-settings';
 import type {
   AptDetail,
   Deal,
@@ -236,6 +237,10 @@ export default function AptDetailView({
     setPage(1);                                   // 필터가 바뀌면 3페이지에 머물 이유가 없다
   };
 
+  // 지도 스위치: 서버가 준 값으로 시작하고, 브라우저에서 곧바로 다시 확인한다
+  const settings = useSiteSettings({ mapEnabled });
+  const showMap = settings.data?.mapEnabled ?? mapEnabled;
+
   const detailQuery = useAptDetail(aptId, initialDetail);
   const trendQuery = usePriceTrend({ aptId, months: 12 }, initialTrend);
   // 1페이지일 때만 서버가 준 값을 쓴다 (2페이지부터는 새로 받아야 한다)
@@ -282,7 +287,7 @@ export default function AptDetailView({
         <div className="space-y-6">
           <KaptPanel apt={apt} />
 
-          <MapPanel apt={apt} enabled={mapEnabled} />
+          <MapPanel apt={apt} enabled={showMap} />
 
           <LocationPanel apt={apt} />
 

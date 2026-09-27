@@ -54,12 +54,15 @@ export function useInView<T extends HTMLElement>(rootMargin = 300) {
 
     window.addEventListener('scroll', check, { passive: true });
     window.addEventListener('resize', check, { passive: true });
-    // 처음부터 화면에 들어와 있는 경우(목록 지도처럼 위쪽에 있는 것)를 위한 1회 측정.
-    // effect 본문에서 바로 setState 하지 않으려고 타이머로 한 틱 미룬다.
-    const t = setTimeout(check, 0);
+
+    // 처음부터 화면에 들어와 있는 경우를 위한 측정. 한 번만 재면 놓친다 —
+    // 글꼴이 바뀌고 목록이 채워지면서 요소 위치가 내려앉기 때문에, 첫 측정 때는
+    // 화면 밖이었다가 잠시 뒤 안으로 들어오는 일이 흔하다. 스크롤을 하지 않으면
+    // 그 뒤로 다시 잴 일이 없으므로 초반 몇 번만 더 확인한다.
+    const timers = [0, 300, 1000, 2500].map((ms) => setTimeout(check, ms));
 
     function cleanup() {
-      clearTimeout(t);
+      timers.forEach(clearTimeout);
       io?.disconnect();
       window.removeEventListener('scroll', check);
       window.removeEventListener('resize', check);
