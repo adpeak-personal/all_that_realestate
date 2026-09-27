@@ -22,6 +22,7 @@ interface NaverMaps {
   Marker: new (opts: Record<string, unknown>) => unknown;
   Panorama: new (el: HTMLElement, opts: Record<string, unknown>) => unknown;
   LatLng: new (lat: number, lng: number) => unknown;
+  Size: new (w: number, h: number) => unknown;
   Event: {
     addListener: (target: NaverEventTarget, event: string, handler: (...args: unknown[]) => void) => void;
   };
@@ -133,9 +134,17 @@ export default function AptMap({
     panoMade.current = true;
 
     const { maps } = window.naver;
-    const pano = new maps.Panorama(panoBox.current, {
+    const box = panoBox.current;
+    const pano = new maps.Panorama(box, {
       position: new maps.LatLng(lat, lng),
       pov: { pan: 0, tilt: 0, fov: 100 },
+      size: new maps.Size(box.clientWidth, box.clientHeight),
+    }) as { setSize?: (s: unknown) => void };
+
+    // 생성 시점의 크기를 그대로 쓰므로, 레이아웃이 잡힌 다음 한 번 더 맞춘다.
+    // (예전에 display:none 상태에서 만들어 100px 짜리로 붙은 적이 있다)
+    requestAnimationFrame(() => {
+      pano.setSize?.(new maps.Size(box.clientWidth, box.clientHeight));
     });
     // 주변에 거리뷰가 없으면 ERROR 로 온다 (단지 안쪽·신축은 없는 곳이 많다)
     maps.Event.addListener(pano as NaverEventTarget, 'pano_status', (...args: unknown[]) => {
@@ -152,11 +161,23 @@ export default function AptMap({
     );
   }
 
+  // 안 보이는 쪽을 display:none 으로 두면 크기가 0 이 되어 지도·거리뷰가 찌그러진다.
+  // 둘 다 자리를 차지한 채로 겹쳐 두고 visibility 로만 감춘다.
+  const layer = (on: boolean) =>
+    `absolute inset-0 ${on ? '' : 'invisible pointer-events-none'}`;
+
   return (
     <div className="relative h-full w-full">
-      <div ref={mapBox} className={`h-full w-full ${view === 'map' ? '' : 'hidden'}`} />
+      {/*
+        지도·거리뷰 요소에 직접 위치를 주면 안 된다. 네이버가 그 요소의 style 에
+        position: relative 를 인라인으로 박아 넣어서 우리 absolute 가 무시되고,
+        레이어 높이가 0 이 된다. 위치를 잡는 껍데기를 한 겹 두고, 안쪽을 넘긴다.
+      */}
+      <div className={layer(view === 'map')}>
+        <div ref={mapBox} className="h-full w-full" />
+      </div>
 
-      <div className={`h-full w-full ${view === 'pano' ? '' : 'hidden'}`}>
+      <div className={layer(view === 'pano')}>
         <div ref={panoBox} className="h-full w-full" />
         {hasPano === false && (
           <div className="absolute inset-0 flex items-center justify-center bg-slate-50 px-6 text-center text-sm text-slate-500">
