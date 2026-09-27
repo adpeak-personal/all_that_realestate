@@ -234,12 +234,13 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
      * status: open(접수중) / upcoming(예정) / closed(마감)
      */
     fastify.get('/presales', async (request, reply) => {
-        const { sido, sggCd, status, houseType, q, page, size } = request.query as {
+        const { sido, sggCd, status, houseType, q, sort, page, size } = request.query as {
             sido?: string;
             sggCd?: string;
             status?: string;
             houseType?: string;
             q?: string;
+            sort?: string;
             page?: string;
             size?: string;
         };
@@ -253,6 +254,7 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
                 status: allowed.has(status ?? '') ? (status as PresaleStatus) : undefined,
                 houseType,
                 q,
+                sort: sort === 'notice' ? 'notice' : undefined,
                 page: page ? Number(page) : undefined,
                 size: size ? Number(size) : undefined,
             });

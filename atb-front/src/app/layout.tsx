@@ -52,6 +52,16 @@ export default function RootLayout({
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">
+        {/*
+          RSS 안내. metadata.alternates 로 넣으면 페이지마다 정의한 canonical 이
+          통째로 덮어써서 사라진다. 그래서 태그로 직접 둔다.
+        */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          title="올댓부동산 분양정보"
+          href="/rss.xml"
+        />
         <QueryProvider>{children}</QueryProvider>
       </body>
     </html>

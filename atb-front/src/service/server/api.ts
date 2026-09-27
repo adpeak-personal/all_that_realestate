@@ -138,6 +138,8 @@ export function fetchPresales(params: {
   status?: PresaleStatus;
   houseType?: string;
   q?: string;
+  /** 'notice' = 공고일 최신순 (RSS 용) */
+  sort?: 'notice';
   page?: number;
   size?: number;
 } = {}) {
@@ -146,6 +148,7 @@ export function fetchPresales(params: {
   if (params.status) qs.set('status', params.status);
   if (params.houseType) qs.set('houseType', params.houseType);
   if (params.q) qs.set('q', params.q);
+  if (params.sort) qs.set('sort', params.sort);
   if (params.page) qs.set('page', String(params.page));
   if (params.size) qs.set('size', String(params.size));
   return get<PresaleListResult>(`/api/presales?${qs.toString()}`, 300);
