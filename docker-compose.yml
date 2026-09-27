@@ -1,0 +1,36 @@
+# 테스트 서버(141.164.60.58)에서 도는 구성.
+#
+# 포트를 127.0.0.1 에만 연다 — 바깥에서 오는 요청은 전부 nginx 가 받고,
+# 컨테이너는 서버 안에서만 보이게 한다. 4000/4030 이 인터넷에 열려 있으면
+# 도메인·HTTPS 를 우회해 그대로 접근할 수 있다.
+#
+# 사용:
+#   docker compose pull && docker compose up -d
+services:
+  back:
+    image: ghcr.io/adpeak-personal/atb-back:latest
+    container_name: atb-back
+    restart: unless-stopped
+    env_file: [.env.back]
+    ports:
+      - "127.0.0.1:4030:4030"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4030/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  front:
+    image: ghcr.io/adpeak-personal/atb-front:latest
+    container_name: atb-front
+    restart: unless-stopped
+    env_file: [.env.front]
+    environment:
+      # 컨테이너끼리는 서비스 이름으로 찾는다
+      API_BASE_URL: "http://back:4030"
+    ports:
+      - "127.0.0.1:4000:4000"
+    depends_on:
+      back:
+        condition: service_started
