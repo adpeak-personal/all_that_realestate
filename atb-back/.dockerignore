@@ -1,0 +1,14 @@
+# 이미지 빌드에 넣지 않을 것들.
+node_modules
+dist
+
+# 비밀값은 이미지에 넣지 않는다 (DB 비밀번호·관리자 해시)
+.env
+.env.local
+
+.git
+.gitignore
+*.log
+
+# 마이그레이션 SQL 은 서버에서 직접 돌린다. 앱이 들고 있을 이유가 없다.
+migrations

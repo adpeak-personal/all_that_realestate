@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { SIDO_LIST } from '../lib/apt-sort';
+import { siteUrl } from '../lib/site-url';
 
 /**
  * 뼈대 사이트맵 — 고정 페이지와 지역 페이지.
@@ -14,7 +15,7 @@ import { SIDO_LIST } from '../lib/apt-sort';
 export const revalidate = 3600;
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
 
   const fixed: MetadataRoute.Sitemap = [
     { url: `${base}/`, changeFrequency: 'daily', priority: 1 },

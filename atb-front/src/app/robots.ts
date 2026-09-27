@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { siteUrl } from '../lib/site-url';
 
 /**
  * robots.txt
@@ -12,7 +13,7 @@ import type { MetadataRoute } from 'next';
  *  - /api    : 데이터 API. 페이지가 아니다
  */
 export default function robots(): MetadataRoute.Robots {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
 
   return {
     rules: {

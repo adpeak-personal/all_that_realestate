@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { fetchPresaleSitemap } from '../../../service/server/api';
+import { siteUrl } from '../../../lib/site-url';
 
 /**
  * 분양 공고 사이트맵. /presale/sitemap/0.xml … 로 나뉜다.
@@ -21,7 +22,7 @@ export default async function sitemap({
 }: {
   id: Promise<string>;
 }): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
   const n = Number(await id) || 0;
 
   const data = await fetchPresaleSitemap(CHUNK, n * CHUNK);

@@ -1,5 +1,6 @@
 import { fetchPresales } from '../../service/server/api';
 import { presalePriceLabel } from '../../lib/format';
+import { siteUrl } from '../../lib/site-url';
 
 /**
  * 분양 공고 RSS.
@@ -28,7 +29,7 @@ function rfc822(date: string | null): string {
 }
 
 export async function GET() {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
   // 공고일 최신순 40건. 읽는 쪽이 매번 전부 받아가므로 길게 둘 이유가 없다.
   const data = await fetchPresales({ size: 40, sort: 'notice' });
   const items = data?.items ?? [];

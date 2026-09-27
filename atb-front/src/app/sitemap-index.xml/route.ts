@@ -1,4 +1,5 @@
 import { fetchAptSitemap, fetchPresaleSitemap } from '../../service/server/api';
+import { siteUrl } from '../../lib/site-url';
 
 /**
  * 사이트맵 인덱스.
@@ -15,7 +16,7 @@ function chunkCount(total: number): number {
 }
 
 export async function GET() {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
 
   const [apt, presale] = await Promise.all([
     fetchAptSitemap(1, 0),

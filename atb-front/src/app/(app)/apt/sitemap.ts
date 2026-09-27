@@ -1,5 +1,6 @@
 import type { MetadataRoute } from 'next';
 import { fetchAptSitemap } from '../../../service/server/api';
+import { siteUrl } from '../../../lib/site-url';
 
 /**
  * 단지 상세 사이트맵. /apt/sitemap/0.xml, /apt/sitemap/1.xml … 로 나뉜다.
@@ -26,7 +27,7 @@ export default async function sitemap({
 }: {
   id: Promise<string>;   // Next 16 부터 id 가 Promise 로 온다
 }): Promise<MetadataRoute.Sitemap> {
-  const base = (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+  const base = siteUrl();
   const n = Number(await id) || 0;
 
   const data = await fetchAptSitemap(CHUNK, n * CHUNK);

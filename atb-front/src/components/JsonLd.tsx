@@ -1,3 +1,5 @@
+import { siteUrl } from '../lib/site-url';
+
 /**
  * 구조화 데이터(JSON-LD) 삽입기.
  *
@@ -13,10 +15,11 @@ export default function JsonLd({ data }: { data: Record<string, unknown> }) {
   );
 }
 
-/** 사이트 주소. 절대 URL 이 필요한 구조화 데이터에서 쓴다. */
-export function siteUrl(): string {
-  return (process.env.SITE_URL ?? 'http://localhost:4000').replace(/\/$/, '');
-}
+/**
+ * 사이트 주소. 절대 URL 이 필요한 구조화 데이터에서 쓴다.
+ * 여기서 다시 내보내는 이유: 이 파일을 쓰는 쪽이 JsonLd 와 siteUrl 을 같이 가져다 쓴다.
+ */
+export { siteUrl };
 
 /**
  * 빵부스러기. 검색 결과에서 '올댓부동산 › 단지 찾기 › 서울 강남구' 처럼

@@ -4,6 +4,7 @@ import type { Metadata, Viewport } from "next";
 // 없이 우리 서버에서 서빙된다. (SIL OFL 1.1 — 상업 이용 가능)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./globals.css";
+import { siteUrl } from "../lib/site-url";
 import QueryProvider from "../service/QueryProvider";
 
 // viewportFit: cover — 아이폰 노치·홈 인디케이터 영역까지 그리고,
@@ -17,7 +18,7 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   // alternates.canonical 과 og:url 이 절대 URL 로 나가려면 기준이 필요하다.
-  metadataBase: new URL(process.env.SITE_URL ?? "http://localhost:4000"),
+  metadataBase: new URL(siteUrl()),
   title: {
     default: "올댓부동산 - 전국 아파트 실거래가·시세",
     // 하위 페이지가 title 을 주면 뒤에 사이트명이 붙는다 (3만 개 중복 title 방지)
