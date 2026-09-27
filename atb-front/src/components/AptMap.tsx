@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadNaverMaps, NAVER_MAP_KEY_ID } from '../lib/naver-maps';
+import { useInView } from '../lib/use-in-view';
 
 /**
  * 단지 위치 지도 + 거리뷰 (네이버 지도 JS v3).
@@ -29,6 +30,8 @@ export default function AptMap({
   name: string;
   zoom?: number;
 }) {
+  // 지도가 화면 가까이 왔을 때만 불러온다 (네이버 무료 한도 절약)
+  const { ref: viewRef, inView } = useInView<HTMLDivElement>();
   const mapBox = useRef<HTMLDivElement | null>(null);
   const panoBox = useRef<HTMLDivElement | null>(null);
   const panoMade = useRef(false);
@@ -39,7 +42,7 @@ export default function AptMap({
   const [hasPano, setHasPano] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!NAVER_MAP_KEY_ID) return;
+    if (!NAVER_MAP_KEY_ID || !inView) return;
     let cancelled = false;
 
     loadNaverMaps()
@@ -50,9 +53,7 @@ export default function AptMap({
         const map = new maps.Map(mapBox.current, {
           center,
           zoom,
-          // 모바일에서 페이지를 스크롤하다 지도 위에서 멈추는 일이 없게 휠 확대는 끄고,
-          // 대신 확대/축소 버튼을 띄운다
-          scrollWheel: false,
+          scrollWheel: true,   // 휠 확대 (사용자 요청)
           zoomControl: true,
           zoomControlOptions: {
             style: maps.ZoomControlStyle.SMALL,
@@ -68,7 +69,7 @@ export default function AptMap({
     return () => {
       cancelled = true;
     };
-  }, [lat, lng, name, zoom]);
+  }, [lat, lng, name, zoom, inView]);
 
   /** 거리뷰는 처음 누를 때 만든다. 안 보는 사람에게 파노라마를 미리 받게 할 이유가 없다. */
   const showPano = useCallback(() => {
@@ -110,7 +111,7 @@ export default function AptMap({
     `absolute inset-0 ${on ? '' : 'invisible pointer-events-none'}`;
 
   return (
-    <div className="relative h-full w-full">
+    <div ref={viewRef} className="relative h-full w-full">
       {/*
         지도·거리뷰 요소에 직접 위치를 주면 안 된다. 네이버가 그 요소의 style 에
         position: relative 를 인라인으로 박아 넣어서 우리 absolute 가 무시되고,

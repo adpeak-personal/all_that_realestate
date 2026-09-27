@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { loadNaverMaps, NAVER_MAP_KEY_ID } from '../lib/naver-maps';
+import { useInView } from '../lib/use-in-view';
 
 /**
  * 단지 목록 지도. 현재 페이지에 실린 단지들만 핀으로 찍는다.
@@ -19,14 +20,8 @@ export interface MapPin {
   lng: number | null;
 }
 
-export default function AptListMap({
-  items,
-  startIndex = 0,
-}: {
-  items: MapPin[];
-  /** 첫 핀에 붙일 번호 - 1 (페이지 2면 30) */
-  startIndex?: number;
-}) {
+export default function AptListMap({ items }: { items: MapPin[] }) {
+  const { ref: viewRef, inView } = useInView<HTMLDivElement>();
   const boxRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,7 +29,7 @@ export default function AptListMap({
   const missing = items.length - withCoord.length;
 
   useEffect(() => {
-    if (!NAVER_MAP_KEY_ID || withCoord.length === 0) return;
+    if (!NAVER_MAP_KEY_ID || withCoord.length === 0 || !inView) return;
     let cancelled = false;
     const cleanups: Array<() => void> = [];
 
@@ -47,9 +42,7 @@ export default function AptListMap({
         const map = new maps.Map(boxRef.current, {
           center: new maps.LatLng(first.lat as number, first.lng as number),
           zoom: 14,
-          // 휠 확대는 끈다 — 페이지를 스크롤하다 지도 위에서 멈추면 지도가 확대돼 버린다.
-          // 대신 버튼을 띄우고, 더블클릭·모바일 두 손가락 확대는 그대로 쓴다.
-          scrollWheel: false,
+          scrollWheel: true,   // 휠 확대 (사용자 요청)
           zoomControl: true,
           zoomControlOptions: {
             style: maps.ZoomControlStyle.SMALL,
@@ -62,24 +55,32 @@ export default function AptListMap({
           const pos = new maps.LatLng(item.lat as number, item.lng as number);
           (bounds as { extend: (p: unknown) => void }).extend(pos);
 
-          const n = startIndex + items.indexOf(item) + 1;
           // 핀을 <a> 로 둔다. 네이버 마커의 click 이벤트에 기대면 지도가 드래그·확대
           // 제스처로 삼켜 버리는 경우가 있고, 링크여야 새 탭 열기도 된다.
+          //
+          // 이름을 그대로 다 적으면 핀끼리 겹쳐 읽을 수 없다. 8자에서 자르고
+          // 전체 이름은 title(마우스 올리면 뜨는 말풍선)에 남긴다.
+          const label = item.aptNm.length > 8 ? `${item.aptNm.slice(0, 8)}…` : item.aptNm;
+          const safeName = item.aptNm.replace(/"/g, '&quot;');
           new maps.Marker({
             position: pos,
             map,
             title: item.aptNm,
+            // 목록 순서대로 뒤 단지가 위에 오면 앞 단지가 가려진다. 순번이 빠를수록 위로.
+            zIndex: items.length - i,
             icon: {
               content:
-                `<a href="/apt/${item.id}" title="${item.aptNm.replace(/"/g, '&quot;')}" ` +
-                `style="display:flex;align-items:center;justify-content:center;` +
-                `width:28px;height:28px;border-radius:9999px;background:#00897B;color:#fff;` +
-                `font:700 12px/1 system-ui,sans-serif;border:2px solid #fff;text-decoration:none;` +
-                `box-shadow:0 1px 4px rgba(0,0,0,.35)">${n}</a>`,
-              anchor: new maps.Point(14, 14),
+                `<a href="/apt/${item.id}" title="${safeName}" ` +
+                `style="display:inline-flex;align-items:center;gap:4px;white-space:nowrap;` +
+                `padding:4px 8px;border-radius:9999px;background:#fff;color:#0A544A;` +
+                `font:700 11px/1.2 system-ui,sans-serif;border:1.5px solid #00897B;` +
+                `text-decoration:none;box-shadow:0 1px 4px rgba(0,0,0,.25)">` +
+                `<span style="width:5px;height:5px;border-radius:9999px;background:#00897B"></span>` +
+                `${label}</a>`,
+              // 핀 아래 끝이 실제 좌표를 가리키도록 아래쪽 가운데를 기준점으로 잡는다
+              anchor: new maps.Point(0, 12),
             },
           });
-          void i;
         });
 
         // 핀이 하나면 fitBounds 가 과하게 확대된다
@@ -95,12 +96,12 @@ export default function AptListMap({
     };
     // items 는 페이지가 바뀔 때만 갈린다. 배열 자체를 의존성으로 두면 매 렌더 재생성된다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.map((i) => i.id).join(','), startIndex]);
+  }, [items.map((i) => i.id).join(','), inView]);
 
   if (!NAVER_MAP_KEY_ID || withCoord.length === 0) return null;
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
+    <div ref={viewRef} className="bg-white rounded-2xl border border-slate-200 overflow-hidden mb-6">
       <div className="h-[300px] sm:h-[380px] relative">
         <div className="absolute inset-0">
           <div ref={boxRef} className="h-full w-full" />

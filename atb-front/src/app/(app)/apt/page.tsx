@@ -127,7 +127,7 @@ export default async function AptListPage({ searchParams }: Props) {
 
         {/* 지도 — 이 페이지에 실린 단지의 핀. 목록 순번과 핀 번호가 같다 */}
         {result && result.items.length > 0 && (
-          <AptListMap items={result.items} startIndex={(page - 1) * SIZE} />
+          <AptListMap items={result.items} />
         )}
 
         {/* 단지 목록 */}
