@@ -24,6 +24,16 @@ export const metadata: Metadata = {
     template: "%s | 올댓부동산",
   },
   description: "전국 아파트 매매 실거래가와 지역별 시세 추이를 확인하세요",
+  // 검색엔진 소유확인. 각 도구에서 받은 코드를 .env 에 넣으면 메타태그가 붙는다.
+  // (구글 서치콘솔 / 네이버 서치어드바이저 — 등록해야 색인 요청·검색 통계를 볼 수 있다)
+  verification: {
+    ...(process.env.GOOGLE_SITE_VERIFICATION
+      ? { google: process.env.GOOGLE_SITE_VERIFICATION }
+      : {}),
+    ...(process.env.NAVER_SITE_VERIFICATION
+      ? { other: { 'naver-site-verification': process.env.NAVER_SITE_VERIFICATION } }
+      : {}),
+  },
   openGraph: {
     siteName: "올댓부동산",
     locale: "ko_KR",

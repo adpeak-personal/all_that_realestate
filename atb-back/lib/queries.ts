@@ -563,21 +563,66 @@ export async function priceTrend(opts: {
  * 거래가 한 건도 없는 단지는 상세 페이지에 보여줄 내용이 없으므로 제외한다.
  * (빈 페이지를 대량으로 색인시키면 사이트 전체 평가에 해롭다.)
  */
-export async function aptSitemapEntries(limit = 50000): Promise<
-    Array<{ id: number; lastModified: string | null }>
-> {
+export async function aptSitemapEntries(
+    limit = 10000,
+    offset = 0,
+): Promise<{ items: Array<{ id: number; lastModified: string | null }>; total: number }> {
     const n = Math.min(Math.max(limit, 1), 50000);
+    const off = Math.max(offset, 0);
+
+    // 사이트맵은 페이지를 나눠 내보낸다(파일당 5만 URL 상한). 순서가 호출마다
+    // 흔들리면 어떤 단지는 어느 파일에도 안 들어가므로 id 로 고정 정렬한다.
     const rows = (await query(
         `SELECT a.id, MAX(d.deal_date) AS last_deal
            FROM apartments a
            JOIN apartment_deals d ON d.apt_id = a.id
           WHERE ${NOT_CANCELED}
           GROUP BY a.id
-          ORDER BY COUNT(*) DESC, a.id
-          LIMIT ${n}`,
+          ORDER BY a.id
+          LIMIT ${n} OFFSET ${off}`,
     )) as Array<{ id: number; last_deal: Date | string | null }>;
 
-    return rows.map((r) => ({ id: r.id, lastModified: toDateString(r.last_deal) }));
+    const cnt = (await query(
+        `SELECT COUNT(*) AS cnt FROM (
+            SELECT a.id FROM apartments a
+              JOIN apartment_deals d ON d.apt_id = a.id
+             WHERE ${NOT_CANCELED}
+             GROUP BY a.id) t`,
+    )) as Array<{ cnt: number }>;
+
+    return {
+        items: rows.map((r) => ({ id: r.id, lastModified: toDateString(r.last_deal) })),
+        total: Number(cnt[0]?.cnt ?? 0),
+    };
+}
+
+/** 사이트맵용 분양 공고 목록. 숨긴 공고는 뺀다 — 화면에 없는 URL 을 제출하면 안 된다. */
+export async function presaleSitemapEntries(
+    limit = 10000,
+    offset = 0,
+): Promise<{ items: Array<{ id: string; lastModified: string | null }>; total: number }> {
+    const n = Math.min(Math.max(limit, 1), 50000);
+    const off = Math.max(offset, 0);
+
+    const rows = (await query(
+        `SELECT house_manage_no, pblanc_no, notice_date, updated_at
+           FROM presale_notices
+          WHERE is_hidden = 0
+          ORDER BY house_manage_no, pblanc_no
+          LIMIT ${n} OFFSET ${off}`,
+    )) as Array<Record<string, any>>;
+
+    const cnt = (await query(
+        'SELECT COUNT(*) AS cnt FROM presale_notices WHERE is_hidden = 0',
+    )) as Array<{ cnt: number }>;
+
+    return {
+        items: rows.map((r) => ({
+            id: `${r.house_manage_no}-${r.pblanc_no}`,
+            lastModified: toDateString(r.updated_at ?? r.notice_date),
+        })),
+        total: Number(cnt[0]?.cnt ?? 0),
+    };
 }
 
 /** 시군구 단위 요약 — 시도를 고른 뒤 '어느 구로 갈지' 고르는 화면용. */

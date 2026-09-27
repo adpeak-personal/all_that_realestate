@@ -77,9 +77,23 @@ export function fetchSggCodes() {
   return get<SggResult>('/api/sgg', 60 * 60 * 24);
 }
 
-export function fetchAptSitemap(limit = 50000) {
-  return get<{ items: Array<{ id: number; lastModified: string | null }> }>(
-    `/api/sitemap/apts?limit=${limit}`,
+interface SitemapPage<T> {
+  items: T[];
+  total: number;
+}
+
+/** 사이트맵용 단지 목록 (페이지 단위). total 로 몇 장으로 나눌지 정한다. */
+export function fetchAptSitemap(limit = 10000, offset = 0) {
+  return get<SitemapPage<{ id: number; lastModified: string | null }>>(
+    `/api/sitemap/apts?limit=${limit}&offset=${offset}`,
+    60 * 60,
+  );
+}
+
+/** 사이트맵용 분양 공고 목록 (페이지 단위) */
+export function fetchPresaleSitemap(limit = 10000, offset = 0) {
+  return get<SitemapPage<{ id: string; lastModified: string | null }>>(
+    `/api/sitemap/presales?limit=${limit}&offset=${offset}`,
     60 * 60,
   );
 }

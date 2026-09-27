@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import JsonLd, { breadcrumb, siteUrl } from '../../../../components/JsonLd';
 import { notFound } from 'next/navigation';
 import { StatusBadge, daysLeft, formatMoveIn, priceRange } from '../PresaleUI';
 import { fetchPresaleDetail } from '../../../../service/server/api';
@@ -65,6 +66,39 @@ export default async function PresaleDetailPage({ params }: Props) {
 
   return (
     <div className="bg-slate-50 min-h-screen">
+      {/*
+        분양 공고는 '매물 안내' 라서 RealEstateListing 으로 적는다.
+        금액 이름은 화면과 같은 기준(임대면 보증금)으로 맞춘다.
+      */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'RealEstateListing',
+          name: p.houseNm,
+          url: `${siteUrl()}/presale/${p.id}`,
+          ...(p.noticeDate ? { datePosted: p.noticeDate } : {}),
+          ...(p.addr
+            ? {
+                address: {
+                  '@type': 'PostalAddress',
+                  addressCountry: 'KR',
+                  ...(p.sido ? { addressRegion: p.sido } : {}),
+                  ...(p.sgg ? { addressLocality: p.sgg } : {}),
+                  streetAddress: p.addr,
+                },
+              }
+            : {}),
+          ...(p.totalHouseholds ? { numberOfAccommodationUnits: p.totalHouseholds } : {}),
+          ...(price ? { description: `${where} · ${priceLabel} ${price}` } : {}),
+        }}
+      />
+      <JsonLd
+        data={breadcrumb([
+          { name: '홈', path: '/' },
+          { name: '분양정보', path: '/presale' },
+          { name: p.houseNm, path: `/presale/${p.id}` },
+        ])}
+      />
       <section className="bg-sale-900 text-white">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
           <Link href="/presale" className="text-sm text-sale-100/70 hover:text-white">

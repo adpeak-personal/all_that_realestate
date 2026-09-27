@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import HomeView from './HomeView';
+import JsonLd, { siteUrl } from '../../components/JsonLd';
 import {
   fetchApts,
   fetchPriceTrend,
@@ -45,8 +46,37 @@ export default async function HomePage() {
       fetchPresaleSummary(),
     ]);
 
+  const base = siteUrl();
+
   return (
-    <HomeView
+    <>
+      {/*
+        WebSite + SearchAction: 검색 결과에서 사이트 이름과 '사이트 내 검색' 상자를
+        쓸 수 있게 한다. target 은 실제 동작하는 검색 주소여야 한다(/apt?q=).
+      */}
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'WebSite',
+          name: '올댓부동산',
+          url: base,
+          potentialAction: {
+            '@type': 'SearchAction',
+            target: { '@type': 'EntryPoint', urlTemplate: `${base}/apt?q={search_term_string}` },
+            'query-input': 'required name=search_term_string',
+          },
+        }}
+      />
+      <JsonLd
+        data={{
+          '@context': 'https://schema.org',
+          '@type': 'Organization',
+          name: '올댓부동산',
+          url: base,
+          logo: `${base}/icon-512.png`,
+        }}
+      />
+      <HomeView
       summary={summary ?? undefined}
       stats={stats ?? undefined}
       trend={trend ?? undefined}
@@ -54,6 +84,7 @@ export default async function HomePage() {
       popular={popular?.items ?? []}
       presales={presales?.items ?? []}
       presaleSummary={presaleSummary ?? undefined}
-    />
+      />
+    </>
   );
 }

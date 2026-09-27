@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import AptDetailView from './AptDetailView';
 import { fetchAptDetail, fetchDeals, fetchPriceTrend, fetchSettings } from '../../../../service/server/api';
 import { formatPrice } from '../../../../lib/format';
+import JsonLd, { breadcrumb } from '../../../../components/JsonLd';
 
 // 서버 컴포넌트. 데이터를 여기서 받아 뷰에 넘겨야 첫 HTML 에 내용이 담긴다.
 // (같은 fetch 는 generateMetadata 와 페이지 사이에서 메모이즈되어 한 번만 나간다)
@@ -58,6 +59,14 @@ export default async function AptDetailPage({ params }: Props) {
 
   return (
     <>
+      <JsonLd
+        data={breadcrumb([
+          { name: '홈', path: '/' },
+          { name: '단지 찾기', path: '/apt' },
+          { name: `${apt.sido} ${apt.sgg}`, path: `/apt?sido=${encodeURIComponent(apt.sido)}` },
+          { name: apt.aptNm, path: `/apt/${apt.id}` },
+        ])}
+      />
       {/*
         구조화 데이터 — 검색엔진이 '이 페이지가 무엇인지' 읽는 경로.
         가격은 실제 최신 거래가를 그대로 쓴다(추정치를 넣지 않는다).

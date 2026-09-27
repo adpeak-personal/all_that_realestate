@@ -9,6 +9,7 @@ import {
     aptDetail,
     priceTrend,
     aptSitemapEntries,
+    presaleSitemapEntries,
     sggBreakdown,
     listApts,
     siteSummary,
@@ -279,12 +280,29 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         }
     });
 
-    /** 사이트맵용 단지 id 목록 — GET /api/sitemap/apts?limit=50000 */
+    /** 사이트맵용 단지 목록 — GET /api/sitemap/apts?limit=10000&offset=0 */
     fastify.get('/sitemap/apts', async (request, reply) => {
-        const { limit } = request.query as { limit?: string };
+        const { limit, offset } = request.query as { limit?: string; offset?: string };
         try {
-            const items = await aptSitemapEntries(limit ? Number(limit) : undefined);
-            return { items, total: items.length };
+            return await aptSitemapEntries(
+                limit ? Number(limit) : undefined,
+                offset ? Number(offset) : undefined,
+            );
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '사이트맵 목록 조회 실패' };
+        }
+    });
+
+    /** 사이트맵용 분양 공고 목록 — GET /api/sitemap/presales?limit=10000&offset=0 */
+    fastify.get('/sitemap/presales', async (request, reply) => {
+        const { limit, offset } = request.query as { limit?: string; offset?: string };
+        try {
+            return await presaleSitemapEntries(
+                limit ? Number(limit) : undefined,
+                offset ? Number(offset) : undefined,
+            );
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);
