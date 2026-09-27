@@ -594,6 +594,9 @@ const APT_ORDER: Record<AptSort, string> = {
 export interface AptListRow {
     id: number;
     aptNm: string;
+    /** WGS84. 지오코딩 전이면 null — 지도에서 그 단지만 빠진다 */
+    lat: number | null;
+    lng: number | null;
     sido: string;
     sgg: string;
     umdNm: string;
@@ -658,6 +661,7 @@ export async function listApts(opts: {
 
     const rows = (await query(
         `SELECT a.id, a.apt_nm, a.umd_nm, a.build_year, s.sido_nm, s.sgg_nm,
+                a.lat, a.lng,
                 k.total_households AS households,
                 COUNT(*)           AS deal_count,
                 AVG(d.deal_amount / d.exclu_use_ar) AS unit_price,
@@ -710,6 +714,9 @@ export async function listApts(opts: {
             return {
                 id: r.id,
                 aptNm: r.apt_nm,
+                // DECIMAL 은 mysql2 가 문자열로 주기도 해서 숫자로 맞춘다
+                lat: r.lat === null || r.lat === undefined ? null : Number(r.lat),
+                lng: r.lng === null || r.lng === undefined ? null : Number(r.lng),
                 sido: toShortSido(r.sido_nm),
                 sgg: r.sgg_nm,
                 umdNm: r.umd_nm,

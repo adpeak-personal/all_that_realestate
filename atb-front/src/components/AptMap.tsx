@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadNaverMaps, NAVER_MAP_KEY_ID } from '../lib/naver-maps';
 
 /**
  * 단지 위치 지도 + 거리뷰 (네이버 지도 JS v3).
@@ -15,70 +16,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * 스크립트는 한 번만 불러온다. 단지 사이를 이동할 때마다 <script> 를 새로 붙이면
  * naver 전역이 다시 초기화되며 지도가 깜빡인다.
  */
-type NaverEventTarget = object;
-
-interface NaverMaps {
-  Map: new (el: HTMLElement, opts: Record<string, unknown>) => unknown;
-  Marker: new (opts: Record<string, unknown>) => unknown;
-  Panorama: new (el: HTMLElement, opts: Record<string, unknown>) => unknown;
-  LatLng: new (lat: number, lng: number) => unknown;
-  Size: new (w: number, h: number) => unknown;
-  Event: {
-    addListener: (target: NaverEventTarget, event: string, handler: (...args: unknown[]) => void) => void;
-  };
-  onJSContentLoaded?: () => void;
-}
-
-declare global {
-  interface Window {
-    naver?: { maps: NaverMaps };
-  }
-}
-
-const KEY_ID = process.env.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID;
-// submodules=panorama 를 붙여야 거리뷰(Panorama)를 쓸 수 있다.
-const SRC =
-  `https://oapi.map.naver.com/openapi/v3/maps.js?ncpKeyId=${KEY_ID ?? ''}&submodules=panorama`;
-
-let loader: Promise<void> | null = null;
-
-/**
- * 스크립트 로드 + 서브모듈 준비까지 기다린다.
- * script 의 load 이벤트는 본체만 보장하고, 서브모듈은 그 뒤에 따로 로드되면서
- * onJSContentLoaded 로 알려준다. 이걸 안 기다리면 naver.maps.Panorama 가 없다.
- */
-function loadNaverMaps(): Promise<void> {
-  if (typeof window === 'undefined') return Promise.resolve();
-  if (window.naver?.maps?.Panorama) return Promise.resolve();
-  if (loader) return loader;
-
-  loader = new Promise<void>((resolve, reject) => {
-    const done = () => resolve();
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src^="https://oapi.map.naver.com"]',
-    );
-    const el = existing ?? document.createElement('script');
-
-    el.addEventListener('load', () => {
-      if (window.naver?.maps?.Panorama) return done();
-      // 서브모듈이 아직이면 콜백을 기다리되, 혹시 이미 끝났을 수도 있어 짧게 폴백을 둔다
-      if (window.naver?.maps) window.naver.maps.onJSContentLoaded = done;
-      setTimeout(done, 3000);
-    });
-    el.addEventListener('error', () => {
-      loader = null; // 다음 시도에서 다시 붙일 수 있게
-      reject(new Error('네이버 지도 스크립트를 불러오지 못했습니다'));
-    });
-
-    if (!existing) {
-      el.src = SRC;
-      el.async = true;
-      document.head.appendChild(el);
-    }
-  });
-  return loader;
-}
-
 type View = 'map' | 'pano';
 
 export default function AptMap({
@@ -102,7 +39,7 @@ export default function AptMap({
   const [hasPano, setHasPano] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (!KEY_ID) return;
+    if (!NAVER_MAP_KEY_ID) return;
     let cancelled = false;
 
     loadNaverMaps()
@@ -147,12 +84,12 @@ export default function AptMap({
       pano.setSize?.(new maps.Size(box.clientWidth, box.clientHeight));
     });
     // 주변에 거리뷰가 없으면 ERROR 로 온다 (단지 안쪽·신축은 없는 곳이 많다)
-    maps.Event.addListener(pano as NaverEventTarget, 'pano_status', (...args: unknown[]) => {
+    maps.Event.addListener(pano as object, 'pano_status', (...args: unknown[]) => {
       setHasPano(args[0] === 'OK');
     });
   }, [lat, lng]);
 
-  const message = !KEY_ID ? '지도 키가 설정되지 않았습니다' : error;
+  const message = !NAVER_MAP_KEY_ID ? '지도 키가 설정되지 않았습니다' : error;
   if (message) {
     return (
       <div className="h-full w-full flex items-center justify-center bg-slate-50 text-sm text-slate-400">

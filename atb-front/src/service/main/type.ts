@@ -145,6 +145,9 @@ export type AptSort = 'deals' | 'price_desc' | 'price_asc' | 'name' | 'household
 export interface AptListRow {
   id: number;
   aptNm: string;
+  /** WGS84. 지오코딩 전이면 null */
+  lat: number | null;
+  lng: number | null;
   sido: string;
   sgg: string;
   umdNm: string;

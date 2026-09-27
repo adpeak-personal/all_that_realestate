@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Pager, SggChips, SidoTabs, SortSelect } from './AptBrowser';
+import AptListMap from '../../../components/AptListMap';
 import { SORT_LABELS } from '../../../lib/apt-sort';
 import { fetchApts, fetchSggBreakdown } from '../../../service/server/api';
 import { formatPrice, toPyeong } from '../../../lib/format';
@@ -123,6 +124,11 @@ export default async function AptListPage({ searchParams }: Props) {
           </p>
           <SortSelect value={sort} />
         </div>
+
+        {/* 지도 — 이 페이지에 실린 단지의 핀. 목록 순번과 핀 번호가 같다 */}
+        {result && result.items.length > 0 && (
+          <AptListMap items={result.items} startIndex={(page - 1) * SIZE} />
+        )}
 
         {/* 단지 목록 */}
         {!result || result.items.length === 0 ? (
