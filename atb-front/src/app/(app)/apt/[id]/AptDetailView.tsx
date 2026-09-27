@@ -224,13 +224,20 @@ export default function AptDetailView({
   initialDeals,
 }: ViewProps) {
   const [page, setPage] = useState(1);
+  // 선택한 전용면적(표시 문자열, 예: '84.70'). null 이면 전체.
+  const [area, setArea] = useState<string | null>(null);
+
+  const pickArea = (a: string) => {
+    setArea((prev) => (prev === a ? null : a));   // 같은 칩을 다시 누르면 해제
+    setPage(1);                                   // 필터가 바뀌면 3페이지에 머물 이유가 없다
+  };
 
   const detailQuery = useAptDetail(aptId, initialDetail);
   const trendQuery = usePriceTrend({ aptId, months: 12 }, initialTrend);
   // 1페이지일 때만 서버가 준 값을 쓴다 (2페이지부터는 새로 받아야 한다)
   const dealsQuery = useDeals(
-    { aptId, page, size: PAGE_SIZE },
-    page === 1 ? initialDeals : undefined,
+    { aptId, page, size: PAGE_SIZE, area: area ? Number(area) : undefined },
+    page === 1 && area === null ? initialDeals : undefined,
   );
 
   // 서버가 항상 넘기므로 undefined 가 될 일이 없다. 타입만 좁혀 둔다.
@@ -291,20 +298,30 @@ export default function AptDetailView({
             <div className="bg-white rounded-2xl border border-slate-200 p-6">
               <h2 className="text-lg font-bold text-slate-900 mb-1">거래된 전용면적</h2>
               <p className="text-sm text-slate-500 mb-4">
-                수집된 기간 동안 실제 거래가 있었던 면적입니다.
+                누르면 아래 거래 이력을 그 면적만 보여줍니다. 다시 누르면 전체로 돌아갑니다.
               </p>
               <div className="flex flex-wrap gap-2">
-                {areaChips.map((area) => (
-                  <span
-                    key={area}
-                    className="bg-brand-50 text-brand-700 text-sm font-medium px-3 py-1.5 rounded-lg"
-                  >
-                    {area}㎡
-                    <span className="text-brand-500 ml-1.5 text-xs">
-                      {toPyeong(Number(area))}평
-                    </span>
-                  </span>
-                ))}
+                {areaChips.map((a) => {
+                  const on = area === a;
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => pickArea(a)}
+                      aria-pressed={on}
+                      className={`text-sm font-medium px-3 py-1.5 rounded-lg transition-colors ${
+                        on
+                          ? 'bg-brand-600 text-white'
+                          : 'bg-brand-50 text-brand-700 hover:bg-brand-100'
+                      }`}
+                    >
+                      {a}㎡
+                      <span className={`ml-1.5 text-xs ${on ? 'text-brand-100' : 'text-brand-500'}`}>
+                        {toPyeong(Number(a))}평
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -313,10 +330,22 @@ export default function AptDetailView({
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
             <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
               <div>
-                <h2 className="text-lg font-bold text-slate-900">거래 이력</h2>
+                <h2 className="text-lg font-bold text-slate-900">
+                  거래 이력
+                  {area && <span className="text-brand-700"> · {area}㎡</span>}
+                </h2>
                 {deals && (
                   <p className="text-sm text-slate-500 mt-0.5">
                     총 {deals.total.toLocaleString()}건
+                    {area && (
+                      <button
+                        type="button"
+                        onClick={() => pickArea(area)}
+                        className="ml-2 text-brand-700 font-medium hover:underline"
+                      >
+                        전체 보기
+                      </button>
+                    )}
                   </p>
                 )}
               </div>

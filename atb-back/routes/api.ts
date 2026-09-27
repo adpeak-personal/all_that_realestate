@@ -82,11 +82,12 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
      * aptId 를 주면 그 단지의 거래이력만 (단지 상세 페이지용).
      */
     fastify.get('/deals', async (request, reply) => {
-        const { sggCd, dealYmd, aptNm, aptId, page, size } = request.query as {
+        const { sggCd, dealYmd, aptNm, aptId, area, page, size } = request.query as {
             sggCd?: string;
             dealYmd?: string;
             aptNm?: string;
             aptId?: string;
+            area?: string;
             page?: string;
             size?: string;
         };
@@ -102,6 +103,7 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
                 dealYmd,
                 aptNm,
                 aptId: aptId ? Number(aptId) : undefined,
+                area: area && Number.isFinite(Number(area)) ? Number(area) : undefined,
                 page: page ? Number(page) : undefined,
                 size: size ? Number(size) : undefined,
             });

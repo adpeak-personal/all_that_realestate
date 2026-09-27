@@ -231,6 +231,8 @@ export async function listDeals(opts: {
     dealYmd?: string; // YYYYMM
     aptNm?: string;
     aptId?: number;
+    /** 전용면적 ㎡. 단지 상세에서 '84.70㎡' 같은 면적 하나만 보려고 쓴다 */
+    area?: number;
     page?: number;
     size?: number;
 }): Promise<DealListResult> {
@@ -256,6 +258,12 @@ export async function listDeals(opts: {
     if (opts.aptId) {
         where += ' AND d.apt_id = ?';
         params.push(opts.aptId);
+    }
+    if (opts.area != null) {
+        // exclu_use_ar 은 DECIMAL(7,4) 라 84.7 과 84.7000 이 섞인다. 소수 둘째 자리로
+        // 맞춰 비교한다 — 화면에 보여주는 값(84.70㎡)과 같은 기준이어야 한다.
+        where += ' AND ROUND(d.exclu_use_ar, 2) = ?';
+        params.push(Number(opts.area.toFixed(2)));
     }
 
     const countRows = (await query(

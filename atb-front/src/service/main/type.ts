@@ -61,6 +61,7 @@ export interface DealListParams {
   dealYmd?: string; // YYYYMM
   aptNm?: string;
   aptId?: number;   // 단지 상세의 거래이력 조회용
+  area?: number;    // 전용면적 ㎡ (단지 상세에서 면적 하나만 볼 때)
   page?: number;
   size?: number;
 }

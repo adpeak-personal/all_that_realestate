@@ -49,6 +49,7 @@ export async function getDeals(params: DealListParams): Promise<DealListResult> 
   if (params.dealYmd) qs.set('dealYmd', params.dealYmd);
   if (params.aptNm) qs.set('aptNm', params.aptNm);
   if (params.aptId) qs.set('aptId', String(params.aptId));
+  if (params.area != null) qs.set('area', String(params.area));
   if (params.page) qs.set('page', String(params.page));
   if (params.size) qs.set('size', String(params.size));
 
