@@ -135,8 +135,20 @@ jobs:
             fi
 
             curl -fsS http://127.0.0.1:4030/api/health
-            curl -fsS -o /dev/null -w "front %{http_code}" http://127.0.0.1:4000/ || {
-              echo "===== 프론트 로그 ====="
-              docker compose logs --tail=80 front
-              exit 1
-            }
+
+            # 화면에 데이터가 실제로 박혀 나오는지 본다.
+            # 200 만 확인하면 '껍데기만 뜬 빈 화면' 을 정상으로 착각한다 —
+            # 파라미터 없는 페이지를 Next 가 빌드 시점에 미리 렌더해 버리면
+            # (그때는 백엔드가 없으니) 숫자가 빠진 채로 배포된다.
+            for page in "/" "/presale" "/apt"; do
+              body=$(curl -fsS "http://127.0.0.1:4000$page") || {
+                echo "::error::$page 응답 실패"
+                docker compose logs --tail=60 front
+                exit 1
+              }
+              if ! echo "$body" | grep -qE '[0-9]{1,3},[0-9]{3}'; then
+                echo "::error::$page 에 숫자 데이터가 없습니다 (빈 화면으로 배포됐을 가능성)"
+                exit 1
+              fi
+              echo "$page 정상"
+            done
