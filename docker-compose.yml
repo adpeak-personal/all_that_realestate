@@ -27,7 +27,8 @@ services:
     restart: unless-stopped
     env_file: [.env.front]
     environment:
-      # 컨테이너끼리는 서비스 이름으로 찾는다
+      # 서버 컴포넌트가 백엔드를 직접 부를 때 쓴다(실행 시 읽는 값).
+      # 브라우저가 타는 /api 프록시는 빌드 때 박히므로 이미지 build-arg 로도 같은 값을 준다.
       API_BASE_URL: "http://back:4030"
     ports:
       - "127.0.0.1:4000:4000"

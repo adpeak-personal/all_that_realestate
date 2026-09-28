@@ -78,6 +78,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=${{ secrets.NAVER_MAP_CLIENT_ID }}
             SITE_URL=${{ secrets.SITE_URL }}
+            API_BASE_URL=http://back:4030
           tags: |
             ${{ env.FRONT_IMAGE }}:latest
             ${{ env.FRONT_IMAGE }}:${{ github.sha }}
