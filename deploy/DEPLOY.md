@@ -142,7 +142,7 @@ curl -sI http://127.0.0.1:4000/ | head -1     # 200
 | `DEPLOY_HOST` | `141.164.60.58` |
 | `DEPLOY_USER` | `root` (또는 배포용 계정) |
 | `DEPLOY_SSH_KEY` | 그 계정으로 접속되는 **개인키 전문** |
-| `NAVER_MAP_CLIENT_ID` | 네이버 Maps Client ID |
+| `NEXT_PUBLIC_NAVER_MAP_CLIENT_ID` | 네이버 Maps Client ID (`NAVER_MAP_CLIENT_ID` 로 넣어도 된다) |
 | `SITE_URL` | `https://atb.co.kr` |
 
 `main` 에 푸시되면: 타입검사·린트 → 이미지 빌드 → GHCR 푸시 → 서버에서 교체 → 헬스체크.

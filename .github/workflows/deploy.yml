@@ -69,6 +69,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: 빌드에 들어갈 값 확인
+        env:
+          MAP_KEY: ${{ secrets.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || secrets.NAVER_MAP_CLIENT_ID }}
+          SITE: ${{ secrets.SITE_URL }}
+        run: |
+          # 이 둘은 빌드 시점에 코드로 박힌다. 비어 있으면 배포는 되는데 지도가
+          # 통째로 죽고(키 없음), 사이트맵 주소가 localhost 로 나간다.
+          # 나중에 화면에서 발견하느니 여기서 멈추는 편이 낫다.
+          [ -n "$MAP_KEY" ] || { echo "::error::지도 키 시크릿이 비어 있습니다 (NEXT_PUBLIC_NAVER_MAP_CLIENT_ID 또는 NAVER_MAP_CLIENT_ID)"; exit 1; }
+          [ -n "$SITE" ]    || { echo "::error::SITE_URL 시크릿이 비어 있습니다"; exit 1; }
+          echo "지도 키 ${#MAP_KEY}자 · SITE_URL=$SITE"
+
       - name: 프론트 이미지
         uses: docker/build-push-action@v6
         with:
@@ -76,7 +88,7 @@ jobs:
           push: true
           # NEXT_PUBLIC_* 는 빌드 때 코드에 박히므로 여기서 넣어야 한다
           build-args: |
-            NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=${{ secrets.NAVER_MAP_CLIENT_ID }}
+            NEXT_PUBLIC_NAVER_MAP_CLIENT_ID=${{ secrets.NEXT_PUBLIC_NAVER_MAP_CLIENT_ID || secrets.NAVER_MAP_CLIENT_ID }}
             SITE_URL=${{ secrets.SITE_URL }}
             API_BASE_URL=http://back:4030
           tags: |
