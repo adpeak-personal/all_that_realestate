@@ -16,6 +16,18 @@ import { formatYearMonth } from '../../lib/format';
 // 클라이언트 컴포넌트도 첫 HTML 은 서버에서 렌더되므로, 이 값이 있어야
 // 크롤러가 읽을 내용이 생긴다.
 
+/**
+ * 메인은 요청할 때 그린다.
+ *
+ * 기본값(정적 생성)으로 두면 '빌드 시점'에 한 번 렌더된 HTML 이 이미지에 구워진다.
+ * 그런데 도커 빌드 중에는 백엔드가 없어서 데이터가 전부 null 이고, 결과적으로
+ * 숫자와 분양 목록이 빈 화면이 배포된다. 배포 직후 5분(재검증 주기) 동안 그 빈
+ * 화면이 그대로 나갔다 — 검색엔진이 그때 들르면 빈 페이지를 가져간다.
+ *
+ * 개별 조회는 service/server/api.ts 에서 따로 캐시하므로 DB 부담은 크지 않다.
+ */
+export const dynamic = 'force-dynamic';
+
 export async function generateMetadata(): Promise<Metadata> {
   const stats = await fetchRegionStats();
   const month = formatYearMonth(stats?.baseMonth ?? null);
