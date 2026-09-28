@@ -12,7 +12,7 @@ export interface CollectStatus {
 }
 
 export interface AdminPresaleRow {
-  id: string;
+  id: number;
   houseNm: string;
   sido: string | null;
   sgg: string | null;
@@ -50,10 +50,10 @@ export const adminApi = {
   saveSettings: (patch: Partial<SiteSettings>) =>
     call<SiteSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(patch) }),
   presaleFlags: (
-    id: string,
+    id: number,
     patch: { isFeatured?: boolean; sortWeight?: number; isHidden?: boolean },
   ) =>
-    call<{ ok: true }>(`/admin/presales/${encodeURIComponent(id)}/flags`, {
+    call<{ ok: true }>(`/admin/presales/${id}/flags`, {
       method: 'PUT',
       body: JSON.stringify(patch),
     }),

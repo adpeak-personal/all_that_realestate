@@ -495,6 +495,11 @@ CREATE TABLE IF NOT EXISTS `apartment_deals` (
 --   여기서는 rcept_bgnde / rcept_endde 로 정규화해 담고, 원본 응답은 raw 에
 --   통째로 남긴다. 필드가 추가·변경돼도 재수집 없이 다시 매핑할 수 있다.
 CREATE TABLE IF NOT EXISTS `presale_notices` (
+  -- 주소(/presale/125)에 쓰는 번호. 청약홈 키는 길고 같은 값이 두 번 반복돼
+  -- 주소로 쓰기에 나쁘다. 진짜 키는 아래 (house_manage_no, pblanc_no) 쌍이고,
+  -- 이 번호는 우리가 붙이는 별도 번호다 — 한 번 붙으면 바뀌면 안 된다.
+  `id`               INT UNSIGNED NOT NULL AUTO_INCREMENT UNIQUE KEY,
+
   `house_manage_no`  VARCHAR(20)  NOT NULL COMMENT '주택관리번호 (청약홈 PK 1/2)',
   `pblanc_no`        VARCHAR(20)  NOT NULL COMMENT '공고번호 (청약홈 PK 2/2)',
 

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import JsonLd, { breadcrumb, siteUrl } from '../../../../components/JsonLd';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { StatusBadge, daysLeft, formatMoveIn, priceRange } from '../PresaleUI';
 import { fetchPresaleDetail } from '../../../../service/server/api';
 import { formatPrice, toPyeong, presalePriceLabel } from '../../../../lib/format';
@@ -52,6 +52,10 @@ export default async function PresaleDetailPage({ params }: Props) {
   const { id } = await params;
   const p = await fetchPresaleDetail(id);
   if (!p) notFound();
+
+  // 예전 주소(/presale/2026930036-2026930036)로 들어오면 새 번호 주소로 넘긴다.
+  // 영구 이동이라 검색엔진도 새 주소로 옮겨 적는다.
+  if (String(p.id) !== id) permanentRedirect(`/presale/${p.id}`);
 
   const where = [p.sido, p.sgg].filter(Boolean).join(' ');
   const left = daysLeft(p.status, p.rceptEndde);

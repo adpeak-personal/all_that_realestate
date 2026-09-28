@@ -605,10 +605,10 @@ export async function presaleSitemapEntries(
     const off = Math.max(offset, 0);
 
     const rows = (await query(
-        `SELECT house_manage_no, pblanc_no, notice_date, updated_at
+        `SELECT id, notice_date, updated_at
            FROM presale_notices
           WHERE is_hidden = 0
-          ORDER BY house_manage_no, pblanc_no
+          ORDER BY id
           LIMIT ${n} OFFSET ${off}`,
     )) as Array<Record<string, any>>;
 
@@ -618,7 +618,7 @@ export async function presaleSitemapEntries(
 
     return {
         items: rows.map((r) => ({
-            id: `${r.house_manage_no}-${r.pblanc_no}`,
+            id: String(r.id),
             lastModified: toDateString(r.updated_at ?? r.notice_date),
         })),
         total: Number(cnt[0]?.cnt ?? 0),
@@ -872,8 +872,8 @@ export type PresaleStatus = 'upcoming' | 'open' | 'closed' | 'unknown';
 export interface PresaleRow {
     houseManageNo: string;
     pblancNo: string;
-    /** 목록·상세 URL 에 쓰는 합성 id */
-    id: string;
+    /** 목록·상세 URL 에 쓰는 번호 (/presale/125). 청약홈 키와 별개다 */
+    id: number;
     houseNm: string;
     houseType: string | null;      // APT / 오피스텔 ...
     rentType: string | null;       // 분양주택 / 임대주택
@@ -897,6 +897,7 @@ export interface PresaleRow {
 }
 
 interface RawPresale {
+    id: number;
     house_manage_no: string;
     pblanc_no: string;
     house_nm: string;
@@ -935,7 +936,8 @@ function mapPresale(r: RawPresale): PresaleRow {
     return {
         houseManageNo: r.house_manage_no,
         pblancNo: r.pblanc_no,
-        id: `${r.house_manage_no}-${r.pblanc_no}`,
+        // 주소에 쓰는 번호. 청약홈 키(house_manage_no/pblanc_no)는 위 필드로 그대로 나간다.
+        id: Number(r.id),
         houseNm: r.house_nm,
         houseType: r.house_secd_nm,
         rentType: r.rent_secd_nm,
@@ -959,7 +961,7 @@ function mapPresale(r: RawPresale): PresaleRow {
 }
 
 const PRESALE_SELECT = `
-    SELECT n.house_manage_no, n.pblanc_no, n.house_nm, n.house_secd_nm,
+    SELECT n.id, n.house_manage_no, n.pblanc_no, n.house_nm, n.house_secd_nm,
            n.rent_secd_nm, n.sido_nm, n.sgg_nm, n.sgg_cd, n.addr,
            n.total_households, n.notice_date, n.rcept_bgnde, n.rcept_endde,
            n.winner_date, n.movein_ym, n.developer, n.builder, n.is_featured,
@@ -1039,7 +1041,7 @@ export async function listPresales(opts: {
     const rows = (await query(
         `${PRESALE_SELECT}
          ${where}
-         GROUP BY n.house_manage_no, n.pblanc_no
+         GROUP BY n.id
          -- 광고 자리(is_featured·sort_weight)가 먼저, 그다음은 사용자가 지금 볼 순서:
          -- 접수중(마감 임박 순) → 접수예정(곧 시작 순) → 마감(최근 순).
          -- 시작일 내림차순으로 두면 '지금 청약 가능한 분양' 에 먼 미래 공고가 먼저 뜬다.
@@ -1093,17 +1095,32 @@ export interface PresaleDetail extends PresaleRow {
 }
 
 /** 분양 공고 상세. id 는 '주택관리번호-공고번호'. */
+/**
+ * 분양 공고 상세.
+ *
+ * id 는 우리 번호(/presale/125)다. 예전 주소가 '주택관리번호-공고번호' 형태였으므로
+ * 그것도 받아 준다 — 어딘가 남아 있는 링크가 죽지 않게. 화면에서는 새 주소로 넘긴다.
+ */
 export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
-    const sep = id.lastIndexOf('-');
-    if (sep <= 0) return null;
-    const houseManageNo = id.slice(0, sep);
-    const pblancNo = id.slice(sep + 1);
+    const numeric = /^\d+$/.test(id);
+    let where: string;
+    let params: unknown[];
+
+    if (numeric) {
+        where = 'WHERE n.id = ? AND n.is_hidden = 0';
+        params = [Number(id)];
+    } else {
+        const sep = id.lastIndexOf('-');
+        if (sep <= 0) return null;
+        where = 'WHERE n.house_manage_no = ? AND n.pblanc_no = ? AND n.is_hidden = 0';
+        params = [id.slice(0, sep), id.slice(sep + 1)];
+    }
 
     const rows = (await query(
         `${PRESALE_SELECT}
-          WHERE n.house_manage_no = ? AND n.pblanc_no = ? AND n.is_hidden = 0
-          GROUP BY n.house_manage_no, n.pblanc_no`,
-        [houseManageNo, pblancNo],
+          ${where}
+          GROUP BY n.id`,
+        params,
     )) as RawPresale[];
 
     if (rows.length === 0) return null;
@@ -1114,7 +1131,7 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
                 mdat_trget_area_at, parcprc_uls_at, lat, lng
            FROM presale_notices
           WHERE house_manage_no = ? AND pblanc_no = ?`,
-        [houseManageNo, pblancNo],
+        [rows[0].house_manage_no, rows[0].pblanc_no],
     )) as Array<Record<string, any>>;
     const e = extraRows[0] ?? {};
 
@@ -1124,7 +1141,7 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
            FROM presale_types
           WHERE house_manage_no = ? AND pblanc_no = ?
           ORDER BY exclu_ar, model_no`,
-        [houseManageNo, pblancNo],
+        [rows[0].house_manage_no, rows[0].pblanc_no],
     )) as Array<Record<string, any>>;
 
     return {

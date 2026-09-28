@@ -48,8 +48,7 @@ export interface PresaleFlagPatch {
 }
 
 export async function setPresaleFlags(
-    houseManageNo: string,
-    pblancNo: string,
+    id: number,
     patch: PresaleFlagPatch,
 ): Promise<boolean> {
     const sets: string[] = [];
@@ -68,10 +67,9 @@ export async function setPresaleFlags(
     }
     if (sets.length === 0) return false;
 
-    params.push(houseManageNo, pblancNo);
+    params.push(id);
     const res = (await query(
-        `UPDATE presale_notices SET ${sets.join(', ')}
-          WHERE house_manage_no = ? AND pblanc_no = ?`,
+        `UPDATE presale_notices SET ${sets.join(', ')} WHERE id = ?`,
         params,
     )) as unknown as { affectedRows?: number };
     return (res?.affectedRows ?? 0) > 0;
@@ -79,7 +77,7 @@ export async function setPresaleFlags(
 
 /** 어드민 목록. 공개 목록과 달리 숨긴 공고도 포함하고 노출 플래그를 같이 준다. */
 export interface AdminPresaleRow {
-    id: string;
+    id: number;
     houseNm: string;
     sido: string | null;
     sgg: string | null;
@@ -98,7 +96,7 @@ export async function listPresalesForAdmin(q?: string, size = 30): Promise<Admin
         params.push(`%${q.trim()}%`);
     }
     const rows = (await query(
-        `SELECT house_manage_no, pblanc_no, house_nm, sido_nm, sgg_nm, house_secd_nm,
+        `SELECT id, house_nm, sido_nm, sgg_nm, house_secd_nm,
                 rcept_bgnde, is_featured, sort_weight, is_hidden
            FROM presale_notices
            ${where}
@@ -108,7 +106,7 @@ export async function listPresalesForAdmin(q?: string, size = 30): Promise<Admin
     )) as Array<Record<string, any>>;
 
     return rows.map((r) => ({
-        id: `${r.house_manage_no}-${r.pblanc_no}`,
+        id: Number(r.id),
         houseNm: r.house_nm,
         sido: r.sido_nm ?? null,
         sgg: r.sgg_nm ?? null,

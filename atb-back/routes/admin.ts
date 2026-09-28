@@ -71,12 +71,11 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     });
 
     fastify.put('/admin/presales/:id/flags', { preHandler: requireAdmin }, async (request, reply) => {
-        // id 는 목록 API 와 같은 'houseManageNo-pblancNo' 형태
         const { id } = request.params as { id: string };
-        const [houseManageNo, pblancNo] = (id ?? '').split('-');
-        if (!houseManageNo || !pblancNo) {
+        const noticeId = Number(id);
+        if (!Number.isInteger(noticeId) || noticeId <= 0) {
             reply.status(400);
-            return { error: 'id 는 houseManageNo-pblancNo 형식이어야 합니다.' };
+            return { error: 'id 는 공고 번호(숫자)여야 합니다.' };
         }
 
         const body = (request.body ?? {}) as Record<string, unknown>;
@@ -91,7 +90,7 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             return { error: 'sortWeight 는 숫자여야 합니다.' };
         }
 
-        const ok = await setPresaleFlags(houseManageNo, pblancNo, {
+        const ok = await setPresaleFlags(noticeId, {
             isFeatured: body.isFeatured as boolean | undefined,
             sortWeight: body.sortWeight === undefined ? undefined : Number(body.sortWeight),
             isHidden: body.isHidden as boolean | undefined,

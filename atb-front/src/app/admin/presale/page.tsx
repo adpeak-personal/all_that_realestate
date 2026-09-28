@@ -17,7 +17,7 @@ function Control() {
   const [items, setItems] = useState<AdminPresaleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savingId, setSavingId] = useState<number | null>(null);
 
   const load = useCallback(async (keyword: string) => {
     setLoading(true);

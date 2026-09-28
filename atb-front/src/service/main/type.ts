@@ -194,7 +194,8 @@ export type PresaleStatus = 'upcoming' | 'open' | 'closed' | 'unknown';
 export interface PresaleRow {
   houseManageNo: string;
   pblancNo: string;
-  id: string;
+  /** 주소에 쓰는 번호 (/presale/125) */
+  id: number;
   houseNm: string;
   houseType: string | null;
   rentType: string | null;
