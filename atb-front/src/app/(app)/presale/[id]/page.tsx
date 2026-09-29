@@ -3,6 +3,7 @@ import Link from 'next/link';
 import JsonLd, { breadcrumb, siteUrl } from '../../../../components/JsonLd';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { StatusBadge, daysLeft, formatMoveIn, priceRange } from '../PresaleUI';
+import LandingBlocks from '../LandingBlocks';
 import { fetchPresaleDetail } from '../../../../service/server/api';
 import { formatPrice, toPyeong, presalePriceLabel } from '../../../../lib/format';
 import type { PresaleDetail } from '../../../../service/main/type';
@@ -188,6 +189,9 @@ export default async function PresaleDetailPage({ params }: Props) {
           )}
         </div>
       </section>
+
+      {/* 관리자가 구성한 광고 영역. 없으면 아무것도 나오지 않는다 */}
+      <LandingBlocks blocks={p.landing} />
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-10 space-y-6">
         {flags.length > 0 && (

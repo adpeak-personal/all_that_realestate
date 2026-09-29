@@ -554,6 +554,9 @@ CREATE TABLE IF NOT EXISTS `presale_notices` (
   -- 관리자가 직접 쓰는 칸. 수집(upsert)이 건드리지 않는다 — 매일 수집이 돌아도 남는다.
   `seo_title`        VARCHAR(200) DEFAULT NULL COMMENT '검색 결과 제목 (비면 자동 생성)',
   `seo_description`  VARCHAR(500) DEFAULT NULL COMMENT '검색 결과 설명 (비면 자동 생성)',
+  -- 랜딩 블록. [{id, type:'image'|'text', ...}] 순서가 곧 화면 순서다.
+  -- 광고 페이지라 구성이 건마다 달라서 컬럼으로 고정하지 않고 JSON 으로 둔다.
+  `landing`          JSON         DEFAULT NULL COMMENT '랜딩 블록 목록 (관리자 작성)',
 
   `is_featured`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '메인 노출',
   `sort_weight`      INT          NOT NULL DEFAULT 0 COMMENT '수동 정렬 가중치 (클수록 앞)',

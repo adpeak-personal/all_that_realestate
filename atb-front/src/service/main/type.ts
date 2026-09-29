@@ -227,6 +227,10 @@ export interface PresaleListResult {
   size: number;
 }
 
+export type LandingBlock =
+  | { id: string; type: 'image'; url: string; alt: string; link: string | null }
+  | { id: string; type: 'text'; heading: string; body: string };
+
 export interface PresaleTypeRow {
   modelNo: string;
   houseTy: string | null;
@@ -253,6 +257,8 @@ export interface PresaleDetail extends PresaleRow {
   lng: number | null;
   seoTitle: string | null;
   seoDescription: string | null;
+  /** 관리자가 구성한 랜딩 블록 (분양 상세 위쪽에 나온다) */
+  landing: LandingBlock[];
   types: PresaleTypeRow[];
 }
 

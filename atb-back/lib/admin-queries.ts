@@ -9,6 +9,7 @@
 import { NOT_CANCELED, toDateString } from './queries';
 import { toFullSido, toShortSido } from './sido';
 import { query } from './db';
+import { parseLanding } from './landing';
 
 // ─── 설정 ────────────────────────────────────────────────────────────────────
 
@@ -274,6 +275,36 @@ async function setSeo(table: 'presale_notices' | 'apartments', id: number, patch
         `UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`,
         params,
     )) as unknown as { affectedRows?: number };
+    return (res?.affectedRows ?? 0) > 0;
+}
+
+/** 편집 화면용 단건. 숨긴 공고도 열 수 있어야 한다. */
+export async function presaleForAdmin(id: number) {
+    const rows = (await query(
+        `SELECT id, house_nm, sido_nm, sgg_nm, seo_title, seo_description, landing
+           FROM presale_notices WHERE id = ?`,
+        [id],
+    )) as Array<Record<string, any>>;
+    const r = rows[0];
+    if (!r) return null;
+    return {
+        id: Number(r.id),
+        houseNm: r.house_nm,
+        sido: r.sido_nm ?? null,
+        sgg: r.sgg_nm ?? null,
+        seoTitle: r.seo_title ?? null,
+        seoDescription: r.seo_description ?? null,
+        landing: parseLanding(r.landing),
+    };
+}
+
+/** 랜딩 블록 저장. 들어온 값은 parseLanding 으로 한 번 걸러서 넣는다. */
+export async function setPresaleLanding(id: number, raw: unknown): Promise<boolean> {
+    const blocks = parseLanding(raw);
+    const res = (await query('UPDATE presale_notices SET landing = ? WHERE id = ?', [
+        blocks.length > 0 ? JSON.stringify(blocks) : null,
+        id,
+    ])) as unknown as { affectedRows?: number };
     return (res?.affectedRows ?? 0) > 0;
 }
 

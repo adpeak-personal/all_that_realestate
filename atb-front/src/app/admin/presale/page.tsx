@@ -48,7 +48,12 @@ function Control() {
         const row = { ...raw, ...flags[raw.id] };
         return (
           <span className="block">
-            <span className="block font-semibold text-slate-800 truncate">{row.houseNm}</span>
+            <a
+              href={`/admin/presale/${row.id}`}
+              className="block font-semibold text-slate-800 truncate hover:text-brand-700 hover:underline"
+            >
+              {row.houseNm}
+            </a>
             <span className="block text-xs text-slate-400 truncate">
               {[row.sido, row.sgg].filter(Boolean).join(' ')}
               {row.houseType ? ` · ${row.houseType}` : ''}

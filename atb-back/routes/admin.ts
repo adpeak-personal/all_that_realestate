@@ -12,6 +12,8 @@ import {
     getSettings,
     listAptsForAdmin,
     listPresalesForAdmin,
+    presaleForAdmin,
+    setPresaleLanding,
     setAptSeo,
     setPresaleFlags,
     setPresaleSeo,
@@ -77,6 +79,37 @@ export default async function adminRoutes(fastify: FastifyInstance) {
     fastify.get('/admin/apts', { preHandler: requireAdmin }, async (request) => {
         const { q, sido, sggCd, page } = request.query as Record<string, string | undefined>;
         return listAptsForAdmin({ q, sido, sggCd, page: page ? Number(page) : undefined });
+    });
+
+    /** 편집 화면이 여는 단건 */
+    fastify.get('/admin/presales/:id', { preHandler: requireAdmin }, async (request, reply) => {
+        const id = Number((request.params as { id: string }).id);
+        const row = Number.isInteger(id) && id > 0 ? await presaleForAdmin(id) : null;
+        if (!row) {
+            reply.status(404);
+            return { error: '공고를 찾지 못했습니다.' };
+        }
+        return row;
+    });
+
+    /** 랜딩 블록 저장. 배열을 통째로 받는다 — 순서가 곧 화면 순서다. */
+    fastify.put('/admin/presales/:id/landing', { preHandler: requireAdmin }, async (request, reply) => {
+        const id = Number((request.params as { id: string }).id);
+        if (!Number.isInteger(id) || id <= 0) {
+            reply.status(400);
+            return { error: 'id 가 올바르지 않습니다.' };
+        }
+        const body = (request.body ?? {}) as { blocks?: unknown };
+        if (!Array.isArray(body.blocks)) {
+            reply.status(400);
+            return { error: 'blocks 는 배열이어야 합니다.' };
+        }
+        const ok = await setPresaleLanding(id, body.blocks);
+        if (!ok) {
+            reply.status(404);
+            return { error: '공고를 찾지 못했습니다.' };
+        }
+        return { ok: true };
     });
 
     /**

@@ -25,6 +25,20 @@ export interface AdminPresaleRow {
   seoDescription: string | null;
 }
 
+export type LandingBlock =
+  | { id: string; type: 'image'; url: string; alt: string; link: string | null }
+  | { id: string; type: 'text'; heading: string; body: string };
+
+export interface AdminPresaleDetail {
+  id: number;
+  houseNm: string;
+  sido: string | null;
+  sgg: string | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
+  landing: LandingBlock[];
+}
+
 export interface AdminAptRow {
   id: number;
   aptNm: string;
@@ -79,6 +93,12 @@ export const adminApi = {
     call<AdminList<AdminPresaleRow>>(`/admin/presales${listQuery(p)}`),
   apts: (p: { q?: string; sido?: string; sggCd?: string; page?: number }) =>
     call<AdminList<AdminAptRow>>(`/admin/apts${listQuery(p)}`),
+  presale: (id: number) => call<AdminPresaleDetail>(`/admin/presales/${id}`),
+  presaleLanding: (id: number, blocks: LandingBlock[]) =>
+    call<{ ok: true }>(`/admin/presales/${id}/landing`, {
+      method: 'PUT',
+      body: JSON.stringify({ blocks }),
+    }),
   presaleSeo: (id: number, patch: { seoTitle: string; seoDescription: string }) =>
     call<{ ok: true }>(`/admin/presales/${id}/seo`, { method: 'PUT', body: JSON.stringify(patch) }),
   aptSeo: (id: number, patch: { seoTitle: string; seoDescription: string }) =>

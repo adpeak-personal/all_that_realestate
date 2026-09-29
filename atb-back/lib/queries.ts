@@ -2,6 +2,7 @@
 // 수집/가공은 atb-program(Python)이 담당하므로 여기서는 SELECT 만 한다.
 import { query } from './db';
 import { toShortSido, toFullSido } from './sido';
+import { parseLanding, type LandingBlock } from './landing';
 
 /** 해제(취소)된 거래 제외 조건. API 가 '' 로 주는 경우가 있어 둘 다 본다. */
 export const NOT_CANCELED = `(d.cdeal_day IS NULL OR d.cdeal_day = '')`;
@@ -1100,6 +1101,8 @@ export interface PresaleDetail extends PresaleRow {
     /** 어드민이 직접 쓴 검색 제목·설명. 비어 있으면 화면에서 자동 생성한다 */
     seoTitle: string | null;
     seoDescription: string | null;
+    /** 관리자가 구성한 랜딩 블록. 비어 있으면 기본 화면만 나온다 */
+    landing: LandingBlock[];
     types: PresaleTypeRow[];
 }
 
@@ -1137,7 +1140,8 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
     const extraRows = (await query(
         `SELECT subscrpt_area_nm, spsply_bgnde, spsply_endde, contract_bgnde,
                 contract_endde, tel, homepage, pblanc_url, speclt_rdn_earth_at,
-                mdat_trget_area_at, parcprc_uls_at, lat, lng, seo_title, seo_description
+                mdat_trget_area_at, parcprc_uls_at, lat, lng, seo_title, seo_description,
+                landing
            FROM presale_notices
           WHERE house_manage_no = ? AND pblanc_no = ?`,
         [rows[0].house_manage_no, rows[0].pblanc_no],
@@ -1170,6 +1174,7 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
         lng: e.lng == null ? null : Number(e.lng),
         seoTitle: e.seo_title ?? null,
         seoDescription: e.seo_description ?? null,
+        landing: parseLanding(e.landing),
         types: typeRows.map((t) => ({
             modelNo: t.model_no,
             houseTy: t.house_ty ?? null,
