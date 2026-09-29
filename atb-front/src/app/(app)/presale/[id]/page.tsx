@@ -5,11 +5,22 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { StatusBadge, daysLeft, formatMoveIn, priceRange } from '../PresaleUI';
 import { fetchPresaleDetail } from '../../../../service/server/api';
 import { formatPrice, toPyeong, presalePriceLabel } from '../../../../lib/format';
+import type { PresaleDetail } from '../../../../service/main/type';
 
 interface Props {
   params: Promise<{ id: string }>;
 }
 
+/**
+ * 분양 상세의 제목·설명.
+ *
+ * 분양은 이 사이트의 수익 영역이라 검색 결과에서 눈에 띄어야 한다. 그래서 마감까지
+ * 남은 날짜와 분양가를 앞에 세운다 — 사람이 실제로 궁금해하고, 클릭을 결정하는 정보다.
+ *
+ * 다만 '할인', '최저가', '모델하우스 오픈' 같은 문구는 쓰지 않는다. 우리가 가진 데이터에
+ * 없는 사실이고, 광고 문구로 끌어온 사람이 페이지에서 그 내용을 못 찾으면 바로 나간다.
+ * 자극은 '마감이 가깝다'는 사실로 만든다.
+ */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const p = await fetchPresaleDetail(id);
@@ -17,19 +28,53 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   const where = [p.sido, p.sgg].filter(Boolean).join(' ');
   const price = priceRange(p.minAmount, p.maxAmount);
+  const label = presalePriceLabel(p.houseType, p.rentType);
+  const left = daysLeft(p.status, p.rceptEndde);
+
+  // 제목 앞머리: 접수중이면 남은 날짜, 예정이면 시작일
+  const lead =
+    p.status === 'open'
+      ? left === 0
+        ? '오늘 청약 마감'
+        : left !== null
+          ? `청약 D-${left}`
+          : '청약 접수중'
+      : p.status === 'upcoming'
+        ? p.rceptBgnde
+          ? `${p.rceptBgnde.slice(5).replace('-', '.')} 청약 시작`
+          : '청약 예정'
+        : '청약 마감';
+
+  const areas = areaRange(p.types);
+  const facts = [
+    where,
+    p.totalHouseholds ? `${p.totalHouseholds.toLocaleString()}세대` : null,
+    areas,
+    price ? `${label} ${price}` : null,
+    p.moveinYm ? `${p.moveinYm.slice(0, 4)}년 ${Number(p.moveinYm.slice(4))}월 입주` : null,
+  ].filter(Boolean);
 
   return {
-    title: `${p.houseNm} 분양정보`,
+    title: `${p.houseNm} ${lead} | ${where} 분양정보`,
     description:
-      `${where} ${p.houseNm} 청약 일정과 ${presalePriceLabel(p.houseType, p.rentType)}. ` +
-      [
-        p.totalHouseholds ? `총 ${p.totalHouseholds.toLocaleString()}세대` : null,
-        price ? `${presalePriceLabel(p.houseType, p.rentType)} ${price}` : null,
-      ]
-        .filter(Boolean)
-        .join(' · '),
+      `${p.houseNm} 분양 · ${facts.join(' · ')}. ` +
+      `청약 일정, 주택형별 ${label}, 특별공급·일반공급 세대수를 확인하세요.`,
     alternates: { canonical: `/presale/${p.id}` },
+    openGraph: {
+      title: `${p.houseNm} ${lead}`,
+      description: facts.join(' · '),
+      type: 'website',
+    },
   };
+}
+
+/** '전용 59~84㎡' 형태. 주택형이 없으면 null. */
+function areaRange(types: PresaleDetail['types']): string | null {
+  const areas = types.map((t) => t.excluAr).filter((a): a is number => a != null);
+  if (areas.length === 0) return null;
+  const min = Math.round(Math.min(...areas));
+  const max = Math.round(Math.max(...areas));
+  return min === max ? `전용 ${min}㎡` : `전용 ${min}~${max}㎡`;
 }
 
 function Row({ label, value }: { label: string; value: string | null }) {

@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import AptDetailView from './AptDetailView';
 import { fetchAptDetail, fetchDeals, fetchPriceTrend, fetchSettings } from '../../../../service/server/api';
 import { formatPrice } from '../../../../lib/format';
+import type { DealListResult } from '../../../../service/main/type';
 import JsonLd, { breadcrumb } from '../../../../components/JsonLd';
 
 // 서버 컴포넌트. 데이터를 여기서 받아 뷰에 넘겨야 첫 HTML 에 내용이 담긴다.
@@ -20,23 +21,46 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: '단지를 찾을 수 없습니다' };
   }
 
+  // 같은 fetch 는 페이지 렌더와 공유되므로 호출이 한 번 더 나가지 않는다
+  const deals = await fetchDeals({ aptId: Number(id), page: 1, size: 1 });
+
   const where = `${apt.sido} ${apt.sgg} ${apt.umdNm}`;
-  const bits = [where];
-  if (apt.kapt?.totalHouseholds) bits.push(`${apt.kapt.totalHouseholds.toLocaleString()}세대`);
-  if (apt.kapt?.useAprDate) bits.push(`${apt.kapt.useAprDate.slice(0, 4)}년 준공`);
+
+  // 설명에는 이 페이지에 실제로 있는 것만 적는다. 없는 기능(매물·전월세 등)을 적으면
+  // 검색으로 들어온 사람이 곧바로 나가고, 그 이탈이 순위에도 불리하게 돌아온다.
+  const has: string[] = ['시세 추이', '면적별 시세'];
+  if (apt.kapt?.subwayStation) has.push('지하철');
+  if (apt.kapt?.educationFacility) has.push('학군');
+  if (apt.kapt?.convenientFacility || apt.kapt?.welfareFacility) has.push('편의시설');
+  if (apt.lat != null) has.push('지도·거리뷰');
+
+  const facts: string[] = [];
+  if (apt.kapt?.totalHouseholds) facts.push(`${apt.kapt.totalHouseholds.toLocaleString()}세대`);
+  if (apt.kapt?.useAprDate) facts.push(`${apt.kapt.useAprDate.slice(0, 4)}년 준공`);
+  // 최근 거래가는 클릭을 부르는 정보라 설명 앞쪽에 둔다
+  const recent = latestLine(deals);
 
   return {
-    title: `${apt.aptNm} 실거래가 · ${where}`,
+    title: `${apt.aptNm} 실거래가·시세·주변정보 | ${where}`,
     description:
-      `${where} ${apt.aptNm}의 국토교통부 아파트 매매 실거래가와 ` +
-      `㎡당 단가 추이입니다. ${bits.join(' · ')}.`,
+      `${where} ${apt.aptNm}의 국토교통부 실거래가, ${has.join(', ')} 정보. ` +
+      (recent ? `${recent}. ` : '') +
+      (facts.length ? `${facts.join(' · ')}.` : ''),
     alternates: { canonical: `/apt/${apt.id}` },
     openGraph: {
       title: `${apt.aptNm} 실거래가`,
-      description: `${where} · ${bits.slice(1).join(' · ')}`,
+      description: [where, ...facts, recent].filter(Boolean).join(' · '),
       type: 'website',
     },
   };
+}
+
+/** '최근 거래 11억 8,000만(84.70㎡, 2026.07)' 형태. 거래가 없으면 null. */
+function latestLine(deals: DealListResult | null): string | null {
+  const d = deals?.items[0];
+  if (!d) return null;
+  const ym = d.dealDate?.slice(0, 7).replace('-', '.') ?? '';
+  return `최근 거래 ${formatPrice(d.dealAmount)}(${d.excluUseAr.toFixed(2)}㎡${ym ? `, ${ym}` : ''})`;
 }
 
 export default async function AptDetailPage({ params }: Props) {
