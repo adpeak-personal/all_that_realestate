@@ -54,14 +54,22 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     p.moveinYm ? `${p.moveinYm.slice(0, 4)}년 ${Number(p.moveinYm.slice(4))}월 입주` : null,
   ].filter(Boolean);
 
+  // 접수중인 공고는 광고 자리다. 사람들이 실제로 검색하는 말(분양가·시세·모델하우스·
+  // 할인정보)을 제목에 그대로 담는다. 모델하우스·할인 자료는 어드민에서 채워 넣을
+  // 예정이라, 채워지기 전까지는 제목이 페이지 내용보다 앞서 있는 상태다.
+  const title =
+    p.status === 'open'
+      ? `${p.houseNm} 분양정보, 분양가, 시세, 모델하우스, 할인정보`
+      : `${p.houseNm} ${lead} | ${where} 분양정보`;
+
   return {
-    title: `${p.houseNm} ${lead} | ${where} 분양정보`,
+    title,
     description:
       `${p.houseNm} 분양 · ${facts.join(' · ')}. ` +
       `청약 일정, 주택형별 ${label}, 특별공급·일반공급 세대수를 확인하세요.`,
     alternates: { canonical: `/presale/${p.id}` },
     openGraph: {
-      title: `${p.houseNm} ${lead}`,
+      title: p.status === 'open' ? `${p.houseNm} ${lead} · 분양가 안내` : `${p.houseNm} ${lead}`,
       description: facts.join(' · '),
       type: 'website',
     },
