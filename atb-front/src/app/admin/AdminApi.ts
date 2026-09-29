@@ -21,6 +21,37 @@ export interface AdminPresaleRow {
   isFeatured: boolean;
   sortWeight: number;
   isHidden: boolean;
+  seoTitle: string | null;
+  seoDescription: string | null;
+}
+
+export interface AdminAptRow {
+  id: number;
+  aptNm: string;
+  sido: string;
+  sgg: string;
+  umdNm: string;
+  dealCount: number;
+  seoTitle: string | null;
+  seoDescription: string | null;
+}
+
+export interface AdminList<T> {
+  items: T[];
+  total: number;
+  page: number;
+  size: number;
+}
+
+/** 목록 조회용 질의 문자열. 빈 값은 빼서 주소를 깔끔하게 둔다. */
+function listQuery(p: { q?: string; sido?: string; sggCd?: string; page?: number }) {
+  const qs = new URLSearchParams();
+  if (p.q) qs.set('q', p.q);
+  if (p.sido) qs.set('sido', p.sido);
+  if (p.sggCd) qs.set('sggCd', p.sggCd);
+  if (p.page && p.page > 1) qs.set('page', String(p.page));
+  const s = qs.toString();
+  return s ? `?${s}` : '';
 }
 
 export interface SiteSettings {
@@ -44,8 +75,14 @@ export const adminApi = {
     call<{ ok: true }>('/admin/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => call<{ ok: true }>('/admin/logout', { method: 'POST' }),
   status: () => call<CollectStatus>('/admin/status'),
-  presales: (q: string) =>
-    call<{ items: AdminPresaleRow[] }>(`/admin/presales?size=30${q ? `&q=${encodeURIComponent(q)}` : ''}`),
+  presales: (p: { q?: string; sido?: string; sggCd?: string; page?: number }) =>
+    call<AdminList<AdminPresaleRow>>(`/admin/presales${listQuery(p)}`),
+  apts: (p: { q?: string; sido?: string; sggCd?: string; page?: number }) =>
+    call<AdminList<AdminAptRow>>(`/admin/apts${listQuery(p)}`),
+  presaleSeo: (id: number, patch: { seoTitle: string; seoDescription: string }) =>
+    call<{ ok: true }>(`/admin/presales/${id}/seo`, { method: 'PUT', body: JSON.stringify(patch) }),
+  aptSeo: (id: number, patch: { seoTitle: string; seoDescription: string }) =>
+    call<{ ok: true }>(`/admin/apts/${id}/seo`, { method: 'PUT', body: JSON.stringify(patch) }),
   settings: () => call<SiteSettings>('/admin/settings'),
   saveSettings: (patch: Partial<SiteSettings>) =>
     call<SiteSettings>('/admin/settings', { method: 'PUT', body: JSON.stringify(patch) }),

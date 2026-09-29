@@ -10,8 +10,11 @@ import { login, logout, isAdmin, requireAdmin, verifyPassword } from '../lib/adm
 import {
     collectStatus,
     getSettings,
+    listAptsForAdmin,
     listPresalesForAdmin,
+    setAptSeo,
     setPresaleFlags,
+    setPresaleSeo,
     setSettings,
 } from '../lib/admin-queries';
 
@@ -65,10 +68,50 @@ export default async function adminRoutes(fastify: FastifyInstance) {
         return setSettings({ mapEnabled: body.mapEnabled as boolean | undefined });
     });
 
+    /** 목록은 검색어·지역·페이지로 좁힌다. 한 페이지 15개. */
     fastify.get('/admin/presales', { preHandler: requireAdmin }, async (request) => {
-        const { q, size } = request.query as { q?: string; size?: string };
-        return { items: await listPresalesForAdmin(q, size ? Number(size) : undefined) };
+        const { q, sido, sggCd, page } = request.query as Record<string, string | undefined>;
+        return listPresalesForAdmin({ q, sido, sggCd, page: page ? Number(page) : undefined });
     });
+
+    fastify.get('/admin/apts', { preHandler: requireAdmin }, async (request) => {
+        const { q, sido, sggCd, page } = request.query as Record<string, string | undefined>;
+        return listAptsForAdmin({ q, sido, sggCd, page: page ? Number(page) : undefined });
+    });
+
+    /**
+     * 검색 결과에 뜨는 제목·설명을 직접 쓴다. 빈 문자열로 보내면 지워지고
+     * 자동 생성으로 돌아간다 — 잘못 쓴 걸 되돌릴 방법이 있어야 한다.
+     */
+    for (const [path, save] of [
+        ['/admin/presales/:id/seo', setPresaleSeo],
+        ['/admin/apts/:id/seo', setAptSeo],
+    ] as const) {
+        fastify.put(path, { preHandler: requireAdmin }, async (request, reply) => {
+            const id = Number((request.params as { id: string }).id);
+            if (!Number.isInteger(id) || id <= 0) {
+                reply.status(400);
+                return { error: 'id 가 올바르지 않습니다.' };
+            }
+            const body = (request.body ?? {}) as Record<string, unknown>;
+            for (const k of ['seoTitle', 'seoDescription']) {
+                const v = body[k];
+                if (v !== undefined && v !== null && typeof v !== 'string') {
+                    reply.status(400);
+                    return { error: `${k} 는 문자열이어야 합니다.` };
+                }
+            }
+            const ok = await save(id, {
+                seoTitle: body.seoTitle as string | null | undefined,
+                seoDescription: body.seoDescription as string | null | undefined,
+            });
+            if (!ok) {
+                reply.status(404);
+                return { error: '대상을 찾지 못했습니다.' };
+            }
+            return { ok: true };
+        });
+    }
 
     fastify.put('/admin/presales/:id/flags', { preHandler: requireAdmin }, async (request, reply) => {
         const { id } = request.params as { id: string };

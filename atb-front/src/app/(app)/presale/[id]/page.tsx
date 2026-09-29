@@ -62,11 +62,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       ? `${p.houseNm} 분양정보, 분양가, 시세, 모델하우스, 할인정보`
       : `${p.houseNm} ${lead} | ${where} 분양정보`;
 
+  const autoDesc =
+    `${p.houseNm} 분양 · ${facts.join(' · ')}. ` +
+    `청약 일정, 주택형별 ${label}, 특별공급·일반공급 세대수를 확인하세요.`;
+
   return {
-    title,
-    description:
-      `${p.houseNm} 분양 · ${facts.join(' · ')}. ` +
-      `청약 일정, 주택형별 ${label}, 특별공급·일반공급 세대수를 확인하세요.`,
+    // 어드민에서 쓴 값이 있으면 그것이 우선 (광고 문구를 직접 손보는 자리)
+    title: p.seoTitle ?? title,
+    description: p.seoDescription ?? autoDesc,
     alternates: { canonical: `/presale/${p.id}` },
     openGraph: {
       title: p.status === 'open' ? `${p.houseNm} ${lead} · 분양가 안내` : `${p.houseNm} ${lead}`,

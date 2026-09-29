@@ -4,7 +4,7 @@ import { query } from './db';
 import { toShortSido, toFullSido } from './sido';
 
 /** 해제(취소)된 거래 제외 조건. API 가 '' 로 주는 경우가 있어 둘 다 본다. */
-const NOT_CANCELED = `(d.cdeal_day IS NULL OR d.cdeal_day = '')`;
+export const NOT_CANCELED = `(d.cdeal_day IS NULL OR d.cdeal_day = '')`;
 
 export interface YearMonth {
     year: number;
@@ -139,7 +139,7 @@ interface RawDeal {
  * 그대로 JSON 직렬화하면 toISOString() 이 UTC 로 바꿔 KST 기준 하루가 밀린다
  * (2004-05-07 → '2004-05-06T15:00:00.000Z'). 로컬 기준으로 직접 포맷한다.
  */
-function toDateString(v: Date | string | null): string | null {
+export function toDateString(v: Date | string | null): string | null {
     if (v === null || v === undefined) return null;
     if (v instanceof Date) {
         const y = v.getFullYear();
@@ -317,6 +317,9 @@ export interface AptDetail {
     excluAreas: number[];
     /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
     areaStats: AreaStat[];
+    /** 어드민이 직접 쓴 검색 제목·설명. 비어 있으면 화면에서 자동 생성한다 */
+    seoTitle: string | null;
+    seoDescription: string | null;
     matchStatus: number;
     /** WGS84. 지오코딩 전이면 null */
     lat: number | null;
@@ -360,6 +363,7 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     const rows = (await query(
         `SELECT a.id, a.apt_nm, a.umd_nm, a.jibun, a.build_year,
                 a.thumbnail_url, a.exclu_areas, a.match_status, a.lat, a.lng,
+                a.seo_title, a.seo_description,
                 s.sido_nm, s.sgg_nm,
                 k.kapt_name, k.total_households, k.dong_cnt, k.top_floor,
                 k.use_apr_date, k.heat_type, k.hall_type, k.builder,
@@ -423,6 +427,8 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         thumbnailUrl: r.thumbnail_url ?? null,
         excluAreas: areas,
         areaStats,
+        seoTitle: r.seo_title ?? null,
+        seoDescription: r.seo_description ?? null,
         matchStatus: r.match_status,
         // DECIMAL 은 드라이버가 문자열로 준다
         lat: r.lat === null || r.lat === undefined ? null : Number(r.lat),
@@ -1091,6 +1097,9 @@ export interface PresaleDetail extends PresaleRow {
     parcprcUlsAt: string | null;
     lat: number | null;
     lng: number | null;
+    /** 어드민이 직접 쓴 검색 제목·설명. 비어 있으면 화면에서 자동 생성한다 */
+    seoTitle: string | null;
+    seoDescription: string | null;
     types: PresaleTypeRow[];
 }
 
@@ -1128,7 +1137,7 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
     const extraRows = (await query(
         `SELECT subscrpt_area_nm, spsply_bgnde, spsply_endde, contract_bgnde,
                 contract_endde, tel, homepage, pblanc_url, speclt_rdn_earth_at,
-                mdat_trget_area_at, parcprc_uls_at, lat, lng
+                mdat_trget_area_at, parcprc_uls_at, lat, lng, seo_title, seo_description
            FROM presale_notices
           WHERE house_manage_no = ? AND pblanc_no = ?`,
         [rows[0].house_manage_no, rows[0].pblanc_no],
@@ -1159,6 +1168,8 @@ export async function presaleDetail(id: string): Promise<PresaleDetail | null> {
         parcprcUlsAt: e.parcprc_uls_at ?? null,
         lat: e.lat == null ? null : Number(e.lat),
         lng: e.lng == null ? null : Number(e.lng),
+        seoTitle: e.seo_title ?? null,
+        seoDescription: e.seo_description ?? null,
         types: typeRows.map((t) => ({
             modelNo: t.model_no,
             houseTy: t.house_ty ?? null,

@@ -41,8 +41,10 @@ async function get<T>(path: string, revalidate = REVALIDATE): Promise<T | null> 
   }
 }
 
+// 상세는 60초만 캐시한다. 어드민에서 제목·설명을 고치면 곧 반영돼야 하는데,
+// 10분을 기다리게 하면 고친 사람이 '저장이 안 됐나' 하고 다시 누르게 된다.
 export function fetchAptDetail(aptId: number) {
-  return get<AptDetail>(`/api/apt/${aptId}`);
+  return get<AptDetail>(`/api/apt/${aptId}`, 60);
 }
 
 export function fetchPriceTrend(params: {
@@ -155,7 +157,7 @@ export function fetchPresales(params: {
 }
 
 export function fetchPresaleDetail(id: string) {
-  return get<PresaleDetail>(`/api/presales/${encodeURIComponent(id)}`, 300);
+  return get<PresaleDetail>(`/api/presales/${encodeURIComponent(id)}`, 60);
 }
 
 /**

@@ -21,7 +21,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </Link>
           <nav className="flex items-center gap-4 text-sm">
             <Link href="/admin" className="hover:text-brand-300">대시보드</Link>
-            <Link href="/admin/presale" className="hover:text-brand-300">분양 노출</Link>
+            <Link href="/admin/presale" className="hover:text-brand-300">분양</Link>
+            <Link href="/admin/apt" className="hover:text-brand-300">단지</Link>
             <Link href="/" className="text-slate-400 hover:text-white">사이트 →</Link>
           </nav>
         </div>

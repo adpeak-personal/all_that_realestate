@@ -399,6 +399,9 @@ CREATE TABLE IF NOT EXISTS `apartments` (
   `address_jibun`    VARCHAR(200)  DEFAULT NULL COMMENT '지번주소',
   `lat`              DECIMAL(10,7) DEFAULT NULL COMMENT '위도 (WGS84, 별도 지오코딩)',
   `lng`              DECIMAL(10,7) DEFAULT NULL COMMENT '경도 (WGS84, 별도 지오코딩)',
+  `seo_title`        VARCHAR(200) DEFAULT NULL COMMENT '검색 결과 제목 (비면 자동 생성)',
+  `seo_description`  VARCHAR(500) DEFAULT NULL COMMENT '검색 결과 설명 (비면 자동 생성)',
+
   `geocode_status`   TINYINT       NOT NULL DEFAULT 0
      COMMENT '0:미처리 1:성공 2:주소로 못찾음 3:오류(재시도 대상)',
   `geocoded_at`      TIMESTAMP     NULL DEFAULT NULL COMMENT '지오코딩 시각',
@@ -548,6 +551,10 @@ CREATE TABLE IF NOT EXISTS `presale_notices` (
   `parcprc_uls_at`      CHAR(1)   DEFAULT NULL COMMENT '분양가상한제 Y/N',
 
   -- 노출 제어. 광고 상품이 붙는 자리라 수집 데이터와 분리해 둔다.
+  -- 관리자가 직접 쓰는 칸. 수집(upsert)이 건드리지 않는다 — 매일 수집이 돌아도 남는다.
+  `seo_title`        VARCHAR(200) DEFAULT NULL COMMENT '검색 결과 제목 (비면 자동 생성)',
+  `seo_description`  VARCHAR(500) DEFAULT NULL COMMENT '검색 결과 설명 (비면 자동 생성)',
+
   `is_featured`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '메인 노출',
   `sort_weight`      INT          NOT NULL DEFAULT 0 COMMENT '수동 정렬 가중치 (클수록 앞)',
   `is_hidden`        TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '숨김',

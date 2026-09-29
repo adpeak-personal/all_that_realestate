@@ -87,6 +87,9 @@ export interface AptDetail {
   excluAreas: number[];
   /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
   areaStats: AreaStat[];
+  /** 어드민이 직접 쓴 검색 제목·설명. 없으면 자동 생성한다 */
+  seoTitle: string | null;
+  seoDescription: string | null;
   matchStatus: number;
   /** WGS84. 지오코딩 전이면 null */
   lat: number | null;
@@ -248,6 +251,8 @@ export interface PresaleDetail extends PresaleRow {
   parcprcUlsAt: string | null;
   lat: number | null;
   lng: number | null;
+  seoTitle: string | null;
+  seoDescription: string | null;
   types: PresaleTypeRow[];
 }
 

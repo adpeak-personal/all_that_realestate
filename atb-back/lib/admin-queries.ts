@@ -6,6 +6,8 @@
  *   - presale_notices 의 노출 3개 컬럼 (광고 상품 자리)
  * 수집 데이터 자체는 어드민에서도 고치지 않는다. 고쳐 봐야 다음 수집에서 덮인다.
  */
+import { NOT_CANCELED, toDateString } from './queries';
+import { toFullSido, toShortSido } from './sido';
 import { query } from './db';
 
 // ─── 설정 ────────────────────────────────────────────────────────────────────
@@ -75,7 +77,12 @@ export async function setPresaleFlags(
     return (res?.affectedRows ?? 0) > 0;
 }
 
-/** 어드민 목록. 공개 목록과 달리 숨긴 공고도 포함하고 노출 플래그를 같이 준다. */
+// ─── 어드민 목록·수정 ────────────────────────────────────────────────────────
+//
+// 공개 목록과 다른 점: 숨긴 것도 보이고, 노출 플래그와 관리자가 쓴 제목·설명을 같이 준다.
+// 관리자가 고칠 수 있는 건 '수집이 안 건드리는 칸' 뿐이다 — 단지명·분양가처럼 수집으로
+// 채워지는 값을 여기서 고쳐 봐야 다음 수집에서 덮인다.
+
 export interface AdminPresaleRow {
     id: number;
     houseNm: string;
@@ -86,37 +93,192 @@ export interface AdminPresaleRow {
     isFeatured: boolean;
     sortWeight: number;
     isHidden: boolean;
+    seoTitle: string | null;
+    seoDescription: string | null;
 }
 
-export async function listPresalesForAdmin(q?: string, size = 30): Promise<AdminPresaleRow[]> {
+export interface AdminListResult<T> {
+    items: T[];
+    total: number;
+    page: number;
+    size: number;
+}
+
+const ADMIN_PAGE = 15;
+
+export async function listPresalesForAdmin(opts: {
+    q?: string;
+    sido?: string;
+    sggCd?: string;
+    page?: number;
+}): Promise<AdminListResult<AdminPresaleRow>> {
+    const page = Math.max(opts.page ?? 1, 1);
+    const offset = (page - 1) * ADMIN_PAGE;
+
     const params: unknown[] = [];
-    let where = '';
-    if (q && q.trim()) {
-        where = 'WHERE house_nm LIKE ?';
-        params.push(`%${q.trim()}%`);
+    const conds: string[] = [];
+    if (opts.q?.trim()) {
+        conds.push('house_nm LIKE ?');
+        params.push(`%${opts.q.trim()}%`);
     }
+    if (opts.sggCd) {
+        conds.push('sgg_cd = ?');
+        params.push(Number(opts.sggCd));
+    } else if (opts.sido) {
+        // 화면에서는 '서울' 처럼 짧게 고르지만 저장은 '서울특별시' 라 맞춰 준다
+        const fulls = toFullSido(opts.sido);
+        if (fulls.length === 0) return { items: [], total: 0, page, size: ADMIN_PAGE };
+        conds.push(`sido_nm IN (${fulls.map(() => '?').join(',')})`);
+        params.push(...fulls);
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    const countRows = (await query(
+        `SELECT COUNT(*) AS cnt FROM presale_notices ${where}`,
+        params,
+    )) as Array<{ cnt: number }>;
+
     const rows = (await query(
-        `SELECT id, house_nm, sido_nm, sgg_nm, house_secd_nm,
-                rcept_bgnde, is_featured, sort_weight, is_hidden
+        `SELECT id, house_nm, sido_nm, sgg_nm, house_secd_nm, rcept_bgnde,
+                is_featured, sort_weight, is_hidden, seo_title, seo_description
            FROM presale_notices
            ${where}
-          ORDER BY is_featured DESC, sort_weight DESC, notice_date DESC
-          LIMIT ${Math.min(Math.max(size, 1), 100)}`,
+          ORDER BY is_featured DESC, sort_weight DESC, notice_date DESC, id DESC
+          LIMIT ${ADMIN_PAGE} OFFSET ${offset}`,
         params,
     )) as Array<Record<string, any>>;
 
-    return rows.map((r) => ({
-        id: Number(r.id),
-        houseNm: r.house_nm,
-        sido: r.sido_nm ?? null,
-        sgg: r.sgg_nm ?? null,
-        houseType: r.house_secd_nm ?? null,
-        rceptBgnde: r.rcept_bgnde ? new Date(r.rcept_bgnde).toISOString().slice(0, 10) : null,
-        isFeatured: !!r.is_featured,
-        sortWeight: Number(r.sort_weight ?? 0),
-        isHidden: !!r.is_hidden,
-    }));
+    return {
+        items: rows.map((r) => ({
+            id: Number(r.id),
+            houseNm: r.house_nm,
+            sido: r.sido_nm ?? null,
+            sgg: r.sgg_nm ?? null,
+            houseType: r.house_secd_nm ?? null,
+            rceptBgnde: toDateString(r.rcept_bgnde),
+            isFeatured: !!r.is_featured,
+            sortWeight: Number(r.sort_weight ?? 0),
+            isHidden: !!r.is_hidden,
+            seoTitle: r.seo_title ?? null,
+            seoDescription: r.seo_description ?? null,
+        })),
+        total: Number(countRows[0]?.cnt ?? 0),
+        page,
+        size: ADMIN_PAGE,
+    };
 }
+
+export interface AdminAptRow {
+    id: number;
+    aptNm: string;
+    sido: string;
+    sgg: string;
+    umdNm: string;
+    dealCount: number;
+    seoTitle: string | null;
+    seoDescription: string | null;
+}
+
+export async function listAptsForAdmin(opts: {
+    q?: string;
+    sido?: string;
+    sggCd?: string;
+    page?: number;
+}): Promise<AdminListResult<AdminAptRow>> {
+    const page = Math.max(opts.page ?? 1, 1);
+    const offset = (page - 1) * ADMIN_PAGE;
+
+    const params: unknown[] = [];
+    const conds: string[] = [];
+    if (opts.q?.trim()) {
+        conds.push('a.apt_nm LIKE ?');
+        params.push(`%${opts.q.trim()}%`);
+    }
+    if (opts.sggCd) {
+        conds.push('a.sgg_cd = ?');
+        params.push(Number(opts.sggCd));
+    } else if (opts.sido) {
+        const fulls = toFullSido(opts.sido);
+        if (fulls.length === 0) return { items: [], total: 0, page, size: ADMIN_PAGE };
+        conds.push(`s.sido_nm IN (${fulls.map(() => '?').join(',')})`);
+        params.push(...fulls);
+    }
+    const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+    const countRows = (await query(
+        `SELECT COUNT(*) AS cnt FROM apartments a
+           JOIN sgg_codes s ON s.sgg_cd = a.sgg_cd ${where}`,
+        params,
+    )) as Array<{ cnt: number }>;
+
+    const rows = (await query(
+        `SELECT a.id, a.apt_nm, a.umd_nm, a.seo_title, a.seo_description,
+                s.sido_nm, s.sgg_nm,
+                (SELECT COUNT(*) FROM apartment_deals d
+                  WHERE d.apt_id = a.id AND ${NOT_CANCELED}) AS deal_count
+           FROM apartments a
+           JOIN sgg_codes s ON s.sgg_cd = a.sgg_cd
+           ${where}
+          ORDER BY deal_count DESC, a.apt_nm
+          LIMIT ${ADMIN_PAGE} OFFSET ${offset}`,
+        params,
+    )) as Array<Record<string, any>>;
+
+    return {
+        items: rows.map((r) => ({
+            id: Number(r.id),
+            aptNm: r.apt_nm,
+            sido: toShortSido(r.sido_nm),
+            sgg: r.sgg_nm,
+            umdNm: r.umd_nm,
+            dealCount: Number(r.deal_count ?? 0),
+            seoTitle: r.seo_title ?? null,
+            seoDescription: r.seo_description ?? null,
+        })),
+        total: Number(countRows[0]?.cnt ?? 0),
+        page,
+        size: ADMIN_PAGE,
+    };
+}
+
+export interface SeoPatch {
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+}
+
+/** 빈 문자열은 '지운다'는 뜻으로 받아 NULL 로 되돌린다(= 자동 생성으로 복귀). */
+function seoValue(v: string | null | undefined): string | null | undefined {
+    if (v === undefined) return undefined;
+    if (v === null) return null;
+    const t = v.trim();
+    return t.length === 0 ? null : t;
+}
+
+async function setSeo(table: 'presale_notices' | 'apartments', id: number, patch: SeoPatch) {
+    const sets: string[] = [];
+    const params: unknown[] = [];
+    const title = seoValue(patch.seoTitle);
+    const desc = seoValue(patch.seoDescription);
+    if (title !== undefined) {
+        sets.push('seo_title = ?');
+        params.push(title);
+    }
+    if (desc !== undefined) {
+        sets.push('seo_description = ?');
+        params.push(desc);
+    }
+    if (sets.length === 0) return false;
+
+    params.push(id);
+    const res = (await query(
+        `UPDATE ${table} SET ${sets.join(', ')} WHERE id = ?`,
+        params,
+    )) as unknown as { affectedRows?: number };
+    return (res?.affectedRows ?? 0) > 0;
+}
+
+export const setPresaleSeo = (id: number, patch: SeoPatch) => setSeo('presale_notices', id, patch);
+export const setAptSeo = (id: number, patch: SeoPatch) => setSeo('apartments', id, patch);
 
 // ─── 수집 상태 ───────────────────────────────────────────────────────────────
 

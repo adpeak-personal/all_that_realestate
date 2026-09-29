@@ -40,12 +40,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // 최근 거래가는 클릭을 부르는 정보라 설명 앞쪽에 둔다
   const recent = latestLine(deals);
 
+  // 어드민에서 직접 쓴 값이 있으면 그것이 우선이다(검색 결과 문구를 손으로 다듬는 용도).
+  const autoTitle = `${apt.aptNm} 실거래가·시세·주변정보 | ${where}`;
+  const autoDesc =
+    `${where} ${apt.aptNm}의 국토교통부 실거래가, ${has.join(', ')} 정보. ` +
+    (recent ? `${recent}. ` : '') +
+    (facts.length ? `${facts.join(' · ')}.` : '');
+
   return {
-    title: `${apt.aptNm} 실거래가·시세·주변정보 | ${where}`,
-    description:
-      `${where} ${apt.aptNm}의 국토교통부 실거래가, ${has.join(', ')} 정보. ` +
-      (recent ? `${recent}. ` : '') +
-      (facts.length ? `${facts.join(' · ')}.` : ''),
+    title: apt.seoTitle ?? autoTitle,
+    description: apt.seoDescription ?? autoDesc,
     alternates: { canonical: `/apt/${apt.id}` },
     openGraph: {
       title: `${apt.aptNm} 실거래가`,
