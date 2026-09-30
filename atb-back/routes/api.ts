@@ -1,4 +1,5 @@
 import { getSettings } from '../lib/admin-queries';
+import { cached } from '../lib/cache';
 import { FastifyInstance, FastifyPluginOptions } from 'fastify';
 import {
     latestDealMonth,
@@ -31,7 +32,8 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
      */
     fastify.get('/settings', async (_request, reply) => {
         try {
-            return await getSettings();
+            // 어드민에서 끄면 30초 안에 반영되면 충분하다
+            return await cached('settings', 30, getSettings);
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);
@@ -176,7 +178,8 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             return { error: 'sido(시도 단축명)는 필수입니다.' };
         }
         try {
-            const items = await sggBreakdown(sido);
+            // 목록 300페이지를 훑는 동안 이 값은 300번 똑같이 나간다. 5분 들고 있는다.
+            const items = await cached(`breakdown:${sido}`, 300, () => sggBreakdown(sido));
             return { items, total: items.length };
         } catch (err) {
             fastify.log.error(err);
@@ -200,14 +203,19 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         };
 
         try {
-            return await listApts({
-                sggCd,
-                sido,
-                q,
-                sort: sort as AptSort | undefined,
-                page: page ? Number(page) : undefined,
-                size: size ? Number(size) : undefined,
-            });
+            // 검색어가 있는 요청은 사람이 친 것이라 매번 새로 조회한다.
+            // 지역·페이지 조합은 크롤러가 수백 개를 훑으므로 잠깐 들고 있는다.
+            const key = `apts:${sggCd ?? ''}:${sido ?? ''}:${sort ?? ''}:${page ?? 1}:${size ?? ''}`;
+            const run = () =>
+                listApts({
+                    sggCd,
+                    sido,
+                    q,
+                    sort: sort as AptSort | undefined,
+                    page: page ? Number(page) : undefined,
+                    size: size ? Number(size) : undefined,
+                });
+            return q ? await run() : await cached(key, 120, run);
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);

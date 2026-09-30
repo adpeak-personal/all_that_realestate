@@ -12,7 +12,16 @@ const pool = mysql.createPool({
     database: process.env.MYSQL_DATABASE || 'atb_db',
     charset: 'utf8mb4',
     waitForConnections: true,
-    connectionLimit: 10,
+    // DB 가 다른 서버에 있어 한 번의 왕복이 로컬보다 비싸다. 크롤러가 목록을 훑으면
+    // 동시 요청이 몰리는데, 10 개로는 뒤에 줄이 계속 길어져 결국 504 로 끊겼다.
+    connectionLimit: 25,
+    // 무한정 줄 세우지 않는다. 밀리면 빨리 실패하는 편이 60초 기다리다 끊기는 것보다 낫다.
+    queueLimit: 60,
+    connectTimeout: 10_000,
+    // 놀고 있는 연결은 정리한다 — 공용 DB 서버라 남의 연결 수까지 잡아먹으면 안 된다.
+    maxIdle: 5,
+    idleTimeout: 60_000,
+    enableKeepAlive: true,
     // DECIMAL 을 문자열로 받아 부동소수점 오차를 피한다 (전용면적/금액 계산용).
     decimalNumbers: false,
 });

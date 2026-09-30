@@ -19,7 +19,19 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: '*',
       allow: '/',
-      disallow: ['/admin', '/admin/', '/login', '/my', '/api/'],
+      disallow: [
+        '/admin',
+        '/admin/',
+        '/login',
+        '/my',
+        '/api/',
+        // 목록의 2페이지 이후는 크롤링하지 않게 한다.
+        // 단지·분양 상세 주소는 사이트맵으로 직접 알려주므로 목록을 수백 페이지
+        // 파고들 이유가 없다. 실제로 크롤러가 /apt?sido=서울&page=180 같은 주소를
+        // 초당 여러 건씩 요청해 DB 가 밀리고 사이트가 504 로 끊겼다.
+        '/apt?*page=',
+        '/presale?*page=',
+      ],
     },
     // 인덱스 하나만 알려주면 그 안에서 단지·분양 조각 파일로 따라간다.
     // (/apt/sitemap.xml 같은 주소는 존재하지 않는다 — 번호가 붙은 파일만 생긴다)
