@@ -1,0 +1,10 @@
+# 수집기만 돌릴 때 필요한 것 (실거래·K-apt·분양·좌표).
+#
+# requirements.txt 에는 접어둔 이미지 파이프라인(torch, opencv, pytesseract 등)이
+# 남아 있어 설치에 수 GB 가 든다. 수집만 하는 기계에는 이 파일을 쓴다.
+#
+#   pip install -r requirements-collect.txt
+#
+# GUI(ui/)나 이미지 분류를 쓸 일이 생기면 그때 requirements.txt 를 쓰면 된다.
+requests==2.34.2
+PyMySQL==1.2.0

@@ -13,6 +13,7 @@ REM    04:00  Geocode                (new complexes + retry errors)
 REM    06:00  Applyhome presale      (latest notices)
 REM
 REM  Runs only while this PC is on and this user is logged in.
+REM  DbTunnel is only needed when the database is on another server.
 REM  Details: scheduler\run_job.py
 REM ============================================================
 
@@ -32,6 +33,13 @@ if not exist "%ROOT%\.env" (
   pause
   exit /b 1
 )
+
+REM  The DB tunnel (tunnel.bat) runs all day, not on a schedule: it must already
+REM  be up when a collection starts. A scheduled ONLOGON task needs admin rights,
+REM  so we drop a launcher in the Startup folder instead - no elevation needed.
+set "STARTUP=%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup"
+> "%STARTUP%\atb-db-tunnel.cmd" echo start "" /min "%HERE%tunnel.bat"
+if exist "%STARTUP%\atb-db-tunnel.cmd" (echo [OK] DB tunnel  at logon ^(Startup folder^)) else (echo [FAILED] DB tunnel)
 
 call :reg "AllThat\KaptSync"    09:00 kapt    || goto :fail
 call :reg "AllThat\Geocode"     04:00 geocode || goto :fail
