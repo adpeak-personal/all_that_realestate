@@ -214,7 +214,8 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
 
         try {
             // 검색어가 있는 요청은 사람이 친 것이라 매번 새로 조회한다.
-            // 지역·페이지 조합은 크롤러가 수백 개를 훑으므로 잠깐 들고 있는다.
+            // 지역·페이지 조합은 크롤러가 수백 개를 훑으므로 들고 있는다. 거래가
+            // 하루 한 번 쌓이니 2분마다 다시 구할 이유가 없다 (전국은 9초가 든다).
             const key = `apts:${sggCd ?? ''}:${sido ?? ''}:${sort ?? ''}:${page ?? 1}:${size ?? ''}`;
             const run = () =>
                 listApts({
@@ -225,7 +226,7 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
                     page: page ? Number(page) : undefined,
                     size: size ? Number(size) : undefined,
                 });
-            return q ? await run() : await cached(key, 120, run);
+            return q ? await run() : await cached(key, 600, run);
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);

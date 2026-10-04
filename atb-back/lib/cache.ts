@@ -25,14 +25,32 @@ const MAX_KEYS = 1000;
  */
 const inflight = new Map<string, Promise<unknown>>();
 
+/**
+ * 만료된 값을 그래도 내줄 수 있는 기간. 수집은 하루 한 번이라 몇 분 지난 값도 맞다.
+ * 이게 없으면 TTL 이 끝나는 순간 들어온 사람이 전국 집계(9초)를 혼자 감당한다.
+ */
+const STALE_SEC = 3600;
+
 export async function cached<T>(key: string, ttlSec: number, load: () => Promise<T>): Promise<T> {
     const now = Date.now();
     const hit = store.get(key);
-    if (hit && hit.expires > now) return hit.value as T;
+    if (hit) {
+        if (hit.expires > now) return hit.value as T;
+        // 만료됐지만 아직 쓸 만하면: 지금은 지난 값을 주고, 갱신은 뒤에서 한다.
+        // 트래픽이 있을 때만 갱신되므로, 아무도 안 보는 값을 주기적으로 긁지 않는다.
+        if (hit.expires + STALE_SEC * 1000 > now) {
+            if (!inflight.has(key)) void run(key, ttlSec, load).catch(() => {});
+            return hit.value as T;
+        }
+    }
 
     const running = inflight.get(key);
     if (running) return running as Promise<T>;
+    return run(key, ttlSec, load);
+}
 
+/** 실제로 조회해 넣는다. 같은 키로 동시에 들어오면 한 번만 돈다. */
+function run<T>(key: string, ttlSec: number, load: () => Promise<T>): Promise<T> {
     const p = load()
         .then((value) => {
             if (store.size >= MAX_KEYS) evict();
@@ -49,13 +67,16 @@ export async function cached<T>(key: string, ttlSec: number, load: () => Promise
 
 /**
  * 자리를 만든다. 넣은 순서대로 버리면, 크롤러가 단지 목록 수백 페이지를 훑는 동안
- * 메인 화면의 집계처럼 비싸게 구한 값이 같이 밀려 나간다. 그래서 만료된 것을 먼저
- * 치우고, 그래도 모자랄 때만 오래된 것을 버린다.
+ * 메인 화면의 집계처럼 비싸게 구한 값이 같이 밀려 나간다.
+ *
+ * 만료된 것을 먼저 치우면 안 된다 — 지난 값을 내주는(stale) 길이 쓰는 게 바로
+ * 그 만료된 값이다. 그래서 '지난 값으로도 쓸 수 없게 된 것' 부터 치우고,
+ * 그래도 모자랄 때만 오래된 것을 버린다.
  */
 function evict() {
     const now = Date.now();
     for (const [k, v] of store) {
-        if (v.expires <= now) store.delete(k);
+        if (v.expires + STALE_SEC * 1000 <= now) store.delete(k);
     }
     while (store.size >= MAX_KEYS) {
         const oldest = store.keys().next().value;
