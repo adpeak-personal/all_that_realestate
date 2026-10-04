@@ -388,7 +388,7 @@ CREATE TABLE IF NOT EXISTS `apartments` (
   -- K-apt 매칭 (kapt_complexes 로 연결)
   `kapt_code`        VARCHAR(20)   DEFAULT NULL COMMENT 'kapt_complexes.kapt_code (미매칭 시 NULL)',
   `match_status`     TINYINT       NOT NULL DEFAULT 0
-     COMMENT '0:미매칭 1:confirmed(이름+지번) 2:matched(단일) 3:ambiguous 4:conflict — 3·4는 수동확인',
+     COMMENT '0:안해봄 1:confirmed(이름+지번) 2:matched(단일) 3:ambiguous 4:conflict 5:unmatched(K-apt 없음) — 3·4는 수동확인',
   `match_method`     VARCHAR(20)   DEFAULT NULL COMMENT 'name / jibun / name+jibun',
   `matched_at`       TIMESTAMP     NULL DEFAULT NULL COMMENT '매칭 실행 시각',
 
