@@ -61,16 +61,19 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         const { ym } = request.query as { ym?: string };
 
         try {
-            const target = ym
-                ? { year: Number(ym.slice(0, 4)), month: Number(ym.slice(4, 6)) }
-                : await latestDealMonth();
+            // 거래월을 찾는 조회까지 같이 들고 있는다 (메인 지도·표가 이걸 쓴다).
+            return await cached(`regions:${ym ?? 'latest'}`, 600, async () => {
+                const target = ym
+                    ? { year: Number(ym.slice(0, 4)), month: Number(ym.slice(4, 6)) }
+                    : await latestDealMonth();
 
-            // 아직 수집된 거래가 한 건도 없는 상태
-            if (!target) return { baseMonth: null, items: [] };
+                // 아직 수집된 거래가 한 건도 없는 상태
+                if (!target) return { baseMonth: null, items: [] };
 
-            const items = await regionStats(target);
-            const baseMonth = `${target.year}${String(target.month).padStart(2, '0')}`;
-            return { baseMonth, items };
+                const items = await regionStats(target);
+                const baseMonth = `${target.year}${String(target.month).padStart(2, '0')}`;
+                return { baseMonth, items };
+            });
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);
@@ -146,12 +149,18 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         };
 
         try {
-            return await priceTrend({
-                sido,
-                sggCd,
-                aptId: aptId ? Number(aptId) : undefined,
-                months: months ? Number(months) : undefined,
-            });
+            const run = () =>
+                priceTrend({
+                    sido,
+                    sggCd,
+                    aptId: aptId ? Number(aptId) : undefined,
+                    months: months ? Number(months) : undefined,
+                });
+            // 단지별 추이는 인덱스를 타서 0.4초면 끝나고, 단지 수만큼 키가 늘어나
+            // 캐시를 밀어낸다. 느린 건 조건 없는 전국·시도 집계(2.3초)뿐이라 그것만 든다.
+            if (aptId) return await run();
+            const key = `trend:${sido ?? ''}:${sggCd ?? ''}:${months ?? ''}`;
+            return await cached(key, 600, run);
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);
@@ -162,7 +171,8 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
     /** 사이트 전체 수집 현황 — GET /api/stats/summary */
     fastify.get('/stats/summary', async (request, reply) => {
         try {
-            return await siteSummary();
+            // 수집이 하루 한 번이라 하루 내내 같은 값인데, 전국 집계라 1.3초가 걸린다.
+            return await cached('summary', 600, siteSummary);
         } catch (err) {
             fastify.log.error(err);
             reply.status(500);

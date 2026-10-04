@@ -15,7 +15,8 @@ interface Entry {
 }
 
 const store = new Map<string, Entry>();
-const MAX_KEYS = 500;
+// 지역·페이지·정렬 조합이 많아 금방 찬다. 시군구만 255개다.
+const MAX_KEYS = 1000;
 
 /**
  * 같은 키로 동시에 들어온 요청은 한 번만 실제로 조회한다.
@@ -34,11 +35,7 @@ export async function cached<T>(key: string, ttlSec: number, load: () => Promise
 
     const p = load()
         .then((value) => {
-            // 오래된 것부터 버린다. 지역·페이지 조합이 많아 무한정 쌓일 수 있다.
-            if (store.size >= MAX_KEYS) {
-                const oldest = store.keys().next().value;
-                if (oldest !== undefined) store.delete(oldest);
-            }
+            if (store.size >= MAX_KEYS) evict();
             store.set(key, { value, expires: Date.now() + ttlSec * 1000 });
             return value;
         })
@@ -48,6 +45,23 @@ export async function cached<T>(key: string, ttlSec: number, load: () => Promise
 
     inflight.set(key, p);
     return p as Promise<T>;
+}
+
+/**
+ * 자리를 만든다. 넣은 순서대로 버리면, 크롤러가 단지 목록 수백 페이지를 훑는 동안
+ * 메인 화면의 집계처럼 비싸게 구한 값이 같이 밀려 나간다. 그래서 만료된 것을 먼저
+ * 치우고, 그래도 모자랄 때만 오래된 것을 버린다.
+ */
+function evict() {
+    const now = Date.now();
+    for (const [k, v] of store) {
+        if (v.expires <= now) store.delete(k);
+    }
+    while (store.size >= MAX_KEYS) {
+        const oldest = store.keys().next().value;
+        if (oldest === undefined) break;
+        store.delete(oldest);
+    }
 }
 
 /** 어드민에서 값을 바꿨을 때처럼, 바로 반영돼야 하는 경우에 쓴다. */

@@ -7,6 +7,7 @@
  */
 import type { FastifyInstance } from 'fastify';
 import { login, logout, isAdmin, requireAdmin, verifyPassword } from '../lib/admin-auth';
+import { clearCache } from '../lib/cache';
 import {
     collectStatus,
     getSettings,
@@ -67,7 +68,10 @@ export default async function adminRoutes(fastify: FastifyInstance) {
             reply.status(400);
             return { error: 'mapEnabled 는 true/false 여야 합니다.' };
         }
-        return setSettings({ mapEnabled: body.mapEnabled as boolean | undefined });
+        const res = await setSettings({ mapEnabled: body.mapEnabled as boolean | undefined });
+        // /api/settings 는 30초 들고 있는다. 지도 스위치는 바로 반영돼야 한다.
+        clearCache('settings');
+        return res;
     });
 
     /** 목록은 검색어·지역·페이지로 좁힌다. 한 페이지 15개. */
