@@ -157,10 +157,16 @@ export default async function AptListPage({ searchParams }: Props) {
         {!result || result.items.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-200">
             <p className="text-slate-600">
-              {q ? '검색 결과가 없습니다' : '이 지역에는 수집된 거래가 없습니다'}
+              {q
+                ? '검색 결과가 없습니다'
+                : `이 지역에는 수집된 ${typeWord(type)} 거래가 없습니다`}
             </p>
             <p className="text-sm text-slate-400 mt-1.5">
-              {q ? '단지명 일부만 입력해보세요 (예: 래미안)' : '다른 지역을 선택해보세요'}
+              {q
+                ? '단지명 일부만 입력해보세요 (예: 래미안)'
+                : type
+                  ? '다른 지역이나 유형을 선택해보세요'
+                  : '다른 지역을 선택해보세요'}
             </p>
           </div>
         ) : (
