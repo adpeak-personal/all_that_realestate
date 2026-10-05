@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import PriceTrendChart from '../../../../components/PriceTrendChart';
 import AptMap from '../../../../components/AptMap';
 import { useAptDetail, useDeals, usePriceTrend } from '../../../../service/main/queries';
 import { useSiteSettings } from '../../../../lib/use-site-settings';
 import type {
   AptDetail,
+  AreaStat,
   Deal,
   DealListResult,
   RentAreaStat,
@@ -283,11 +284,22 @@ export default function AptDetailView({
   const deals = dealsQuery.data;
 
   // 서버가 소수 2자리로 묶어 주므로 여기서 다시 중복을 없앨 필요가 없다.
-  const areaRows = apt?.areaStats ?? [];
-  // 면적(소수 2자리) → 전월세 요약. 면적별 시세 줄에 전세가율을 같이 보여준다.
-  const rentByArea = new Map(
-    (apt?.rentStats ?? []).map((r) => [r.area.toFixed(2), r]),
-  );
+  // 면적별 줄은 매매와 전월세의 '합집합' 이다. 매매만 기준으로 만들면, 그 면적에
+  // 매매가 없는 단지는 전세가 수백 건 있어도 화면에 한 줄도 안 나온다
+  // (다산지금데시앙이 전세 497건인데 아무것도 안 보였다).
+  const areaRows = useMemo(() => {
+    const byArea = new Map<string, { area: number; sale?: AreaStat; rent?: RentAreaStat }>();
+    for (const a of apt?.areaStats ?? []) {
+      byArea.set(a.area.toFixed(2), { area: a.area, sale: a });
+    }
+    for (const r of apt?.rentStats ?? []) {
+      const key = r.area.toFixed(2);
+      const hit = byArea.get(key);
+      if (hit) hit.rent = r;
+      else byArea.set(key, { area: r.area, rent: r });
+    }
+    return [...byArea.values()].sort((x, y) => x.area - y.area);
+  }, [apt?.areaStats, apt?.rentStats]);
   const totalPages = deals ? Math.max(Math.ceil(deals.total / deals.size), 1) : 1;
 
   // 서버가 initialDetail 을 넘기므로 로딩/미존재 분기는 여기서 필요 없다
@@ -352,6 +364,7 @@ export default function AptDetailView({
                 {areaRows.map((row) => {
                   const key = row.area.toFixed(2);
                   const on = area === key;
+                  const sale = row.sale;
                   return (
                     <li key={key}>
                       <button
@@ -371,28 +384,32 @@ export default function AptDetailView({
                             {key}㎡
                           </span>
                           <span className="block text-xs text-slate-400 tabular-nums">
-                            {toPyeong(row.area)}평 · {row.dealCount.toLocaleString()}건
+                            {toPyeong(row.area)}평
+                            {sale ? ` · ${sale.dealCount.toLocaleString()}건` : ''}
                           </span>
                         </span>
 
-                        {/* 최저 ~ 최고. 한 건뿐인 면적은 범위가 아니라 한 값만 보여준다 */}
+                        {/* 최저 ~ 최고. 한 건뿐인 면적은 범위가 아니라 한 값만 보여준다.
+                            매매가 없고 전월세만 있는 면적은 매매 자리를 비워 둔다. */}
                         <span className="min-w-0 flex-1 text-right">
-                          {row.minAmount === row.maxAmount ? (
+                          {!sale ? (
+                            <span className="text-sm text-slate-300">매매 없음</span>
+                          ) : sale.minAmount === sale.maxAmount ? (
                             <span className="font-bold text-slate-900 tabular-nums">
-                              {formatPrice(row.minAmount)}
+                              {formatPrice(sale.minAmount)}
                             </span>
                           ) : (
                             <>
                               <span className="text-sm text-down tabular-nums">
-                                {formatPrice(row.minAmount)}
+                                {formatPrice(sale.minAmount)}
                               </span>
                               <span className="text-slate-300 mx-1.5">~</span>
                               <span className="text-sm font-bold text-up tabular-nums">
-                                {formatPrice(row.maxAmount)}
+                                {formatPrice(sale.maxAmount)}
                               </span>
                             </>
                           )}
-                          <RentLine rent={rentByArea.get(key)} />
+                          <RentLine rent={row.rent} />
                         </span>
                       </button>
                     </li>
