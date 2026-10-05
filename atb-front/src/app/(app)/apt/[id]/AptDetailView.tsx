@@ -10,6 +10,7 @@ import type {
   AptDetail,
   Deal,
   DealListResult,
+  RentAreaStat,
   TrendResult,
 } from '../../../../service/main/type';
 import { formatDate, formatPrice, toPyeong } from '../../../../lib/format';
@@ -161,6 +162,34 @@ function FacilityGroup({ title, raw }: { title: string; raw: string | null }) {
  * 위치 지도. 좌표가 없는 단지(주소로 못 찾은 150여 곳)는 아예 렌더하지 않는다 —
  * 빈 회색 상자를 두는 것보다 없는 편이 낫다.
  */
+/**
+ * 면적별 시세 줄에 붙는 전월세 한 줄.
+ *
+ * 전세가율은 같은 면적·최근 1년끼리만 비교한 값이다 (서버에서 계산). 단지 전체를
+ * 평균하면 작은 평수 전세와 큰 평수 매매가 섞여 10% 같은 숫자가 나온다.
+ * 최근 1년 매매나 전세가 없는 면적은 비율 없이 보증금만 보여준다.
+ */
+function RentLine({ rent }: { rent: RentAreaStat | undefined }) {
+  if (!rent || (rent.jeonseCount === 0 && rent.wolseCount === 0)) return null;
+
+  const parts: string[] = [];
+  if (rent.jeonseAvg1y !== null) parts.push(`전세 ${formatPrice(rent.jeonseAvg1y)}`);
+  else if (rent.jeonseMax !== null) parts.push(`전세 ${formatPrice(rent.jeonseMax)}`);
+  if (rent.wolseRentAvg !== null) {
+    parts.push(`월세 ${formatPrice(rent.wolseDepositAvg ?? 0)}/${rent.wolseRentAvg}만`);
+  }
+  if (parts.length === 0) return null;
+
+  return (
+    <span className="block text-xs text-slate-400 tabular-nums mt-0.5">
+      {parts.join(' · ')}
+      {rent.jeonseRatio !== null && (
+        <span className="ml-1.5 text-brand-700 font-semibold">전세가율 {rent.jeonseRatio}%</span>
+      )}
+    </span>
+  );
+}
+
 function MapPanel({ apt, enabled }: { apt: AptDetail; enabled: boolean }) {
   // 어드민에서 지도를 끄면 패널 자체를 내린다 (네이버 호출도 함께 멈춘다)
   if (!enabled || apt.lat == null || apt.lng == null) return null;
@@ -255,6 +284,10 @@ export default function AptDetailView({
 
   // 서버가 소수 2자리로 묶어 주므로 여기서 다시 중복을 없앨 필요가 없다.
   const areaRows = apt?.areaStats ?? [];
+  // 면적(소수 2자리) → 전월세 요약. 면적별 시세 줄에 전세가율을 같이 보여준다.
+  const rentByArea = new Map(
+    (apt?.rentStats ?? []).map((r) => [r.area.toFixed(2), r]),
+  );
   const totalPages = deals ? Math.max(Math.ceil(deals.total / deals.size), 1) : 1;
 
   // 서버가 initialDetail 을 넘기므로 로딩/미존재 분기는 여기서 필요 없다
@@ -272,7 +305,14 @@ export default function AptDetailView({
             ← 실거래가 목록
           </Link>
 
-          <h1 className="text-3xl font-bold text-slate-900 tracking-tight mt-3">{apt.aptNm}</h1>
+          <div className="flex flex-wrap items-center gap-2 mt-3">
+            <h1 className="text-3xl font-bold text-slate-900 tracking-tight">{apt.aptNm}</h1>
+            {apt.propertyType === 'OFFI' && (
+              <span className="px-2 py-0.5 rounded-md text-xs font-semibold bg-slate-100 text-slate-500">
+                오피스텔
+              </span>
+            )}
+          </div>
 
           <p className="text-slate-500 mt-2">
             {apt.kapt?.addrRoad ?? `${apt.sido} ${apt.sgg} ${apt.umdNm} ${apt.jibun ?? ''}`.trim()}
@@ -352,6 +392,7 @@ export default function AptDetailView({
                               </span>
                             </>
                           )}
+                          <RentLine rent={rentByArea.get(key)} />
                         </span>
                       </button>
                     </li>

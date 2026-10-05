@@ -110,6 +110,7 @@ export function fetchApts(params: {
   sggCd?: string;
   sido?: string;
   q?: string;
+  type?: string;
   sort?: AptSort;
   page?: number;
   size?: number;
@@ -118,6 +119,7 @@ export function fetchApts(params: {
   if (params.sggCd) qs.set('sggCd', params.sggCd);
   if (params.sido) qs.set('sido', params.sido);
   if (params.q) qs.set('q', params.q);
+  if (params.type) qs.set('type', params.type);
   if (params.sort) qs.set('sort', params.sort);
   if (params.page) qs.set('page', String(params.page));
   if (params.size) qs.set('size', String(params.size));

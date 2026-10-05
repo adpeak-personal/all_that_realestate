@@ -66,6 +66,42 @@ export interface DealListParams {
   size?: number;
 }
 
+export type PropertyType = 'APT' | 'OFFI';
+
+/** 면적별 전월세 요약. 전세가율은 같은 면적·최근 1년끼리만 비교한 값이다. */
+export interface RentAreaStat {
+  area: number;
+  jeonseCount: number;
+  jeonseMin: number | null;
+  jeonseMax: number | null;
+  jeonseAvg1y: number | null;
+  wolseCount: number;
+  wolseDepositAvg: number | null;
+  wolseRentAvg: number | null;
+  /** 전세가율 %. 최근 1년 매매나 전세가 없으면 null */
+  jeonseRatio: number | null;
+}
+
+/** 전월세 이력 한 건 */
+export interface RentRow {
+  id: number;
+  dealDate: string | null;
+  rentType: 'J' | 'M';
+  deposit: number;
+  monthlyRent: number;
+  excluUseAr: number;
+  floor: number | null;
+  contractType: string | null;
+  contractTerm: string | null;
+  preDeposit: number | null;
+  preMonthlyRent: number | null;
+}
+
+export interface RentListResult {
+  items: RentRow[];
+  total: number;
+}
+
 export interface AreaStat {
   /** 전용면적 ㎡, 소수 2자리 */
   area: number;
@@ -78,6 +114,7 @@ export interface AreaStat {
 export interface AptDetail {
   id: number;
   aptNm: string;
+  propertyType: PropertyType;
   sido: string;
   sgg: string;
   umdNm: string;
@@ -87,6 +124,8 @@ export interface AptDetail {
   excluAreas: number[];
   /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
   areaStats: AreaStat[];
+  /** 면적별 전월세 요약. 전월세가 아직 없는 단지는 빈 배열 */
+  rentStats: RentAreaStat[];
   /** 어드민이 직접 쓴 검색 제목·설명. 없으면 자동 생성한다 */
   seoTitle: string | null;
   seoDescription: string | null;
@@ -159,6 +198,7 @@ export type AptSort = 'deals' | 'price_desc' | 'price_asc' | 'name' | 'household
 export interface AptListRow {
   id: number;
   aptNm: string;
+  propertyType: PropertyType;
   /** WGS84. 지오코딩 전이면 null */
   lat: number | null;
   lng: number | null;

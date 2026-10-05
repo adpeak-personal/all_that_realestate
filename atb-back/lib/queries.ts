@@ -306,9 +306,30 @@ export async function sggCodes(): Promise<Array<{ code: string; sido: string; sg
     }));
 }
 
+/**
+ * 면적별 전월세 요약. 전세가율은 같은 면적·같은 기간(최근 1년)끼리만 비교한다.
+ * 단지 전체를 평균하면 작은 평수 전세와 큰 평수 매매가 섞여 터무니없는 값이 나온다
+ * (실제로 10% 같은 숫자가 찍혔다).
+ */
+export interface RentAreaStat {
+    area: number;
+    jeonseCount: number;
+    jeonseMin: number | null;
+    jeonseMax: number | null;
+    /** 최근 1년 평균 보증금 (만원). 1년 내 전세가 없으면 null */
+    jeonseAvg1y: number | null;
+    wolseCount: number;
+    /** 월세 계약의 평균 보증금·월세 (만원) */
+    wolseDepositAvg: number | null;
+    wolseRentAvg: number | null;
+    /** 전세가율 % — 최근 1년 전세 평균 ÷ 최근 1년 매매 평균. 한쪽이라도 없으면 null */
+    jeonseRatio: number | null;
+}
+
 export interface AptDetail {
     id: number;
     aptNm: string;
+    propertyType: PropertyType;
     sido: string;
     sgg: string;
     umdNm: string;
@@ -318,6 +339,8 @@ export interface AptDetail {
     excluAreas: number[];
     /** 면적별 요약 (거래건수·최저·최고). 해제 거래는 뺀 수치 */
     areaStats: AreaStat[];
+    /** 면적별 전월세 요약. 전월세가 아직 없는 단지는 빈 배열 */
+    rentStats: RentAreaStat[];
     /** 어드민이 직접 쓴 검색 제목·설명. 비어 있으면 화면에서 자동 생성한다 */
     seoTitle: string | null;
     seoDescription: string | null;
@@ -362,7 +385,7 @@ export interface AreaStat {
 
 export async function aptDetail(aptId: number): Promise<AptDetail | null> {
     const rows = (await query(
-        `SELECT a.id, a.apt_nm, a.umd_nm, a.jibun, a.build_year,
+        `SELECT a.id, a.apt_nm, a.property_type, a.umd_nm, a.jibun, a.build_year,
                 a.thumbnail_url, a.exclu_areas, a.match_status, a.lat, a.lng,
                 a.seo_title, a.seo_description,
                 s.sido_nm, s.sgg_nm,
@@ -402,7 +425,9 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         `SELECT ROUND(d.exclu_use_ar, 2) AS area,
                 COUNT(*)            AS deal_count,
                 MIN(d.deal_amount)  AS min_amount,
-                MAX(d.deal_amount)  AS max_amount
+                MAX(d.deal_amount)  AS max_amount,
+                AVG(IF(d.deal_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR),
+                       d.deal_amount, NULL)) AS avg_1y
            FROM apartment_deals d
           WHERE d.apt_id = ? AND ${NOT_CANCELED}
           GROUP BY area
@@ -417,9 +442,57 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         maxAmount: Number(x.max_amount),
     }));
 
+    // 전세가율을 같은 면적끼리 맞추려고 매매 쪽 최근 1년 평균을 면적별로 들고 간다
+    const saleAvg1y = new Map<number, number>();
+    for (const x of statRows) {
+        if (x.avg_1y !== null && x.avg_1y !== undefined) {
+            saleAvg1y.set(Number(x.area), Number(x.avg_1y));
+        }
+    }
+
+    const rentRows = (await query(
+        `SELECT ROUND(r.exclu_use_ar, 2) AS area,
+                SUM(r.rent_type = 'J')                                      AS j_cnt,
+                MIN(IF(r.rent_type = 'J', r.deposit, NULL))                 AS j_min,
+                MAX(IF(r.rent_type = 'J', r.deposit, NULL))                 AS j_max,
+                AVG(IF(r.rent_type = 'J'
+                       AND r.deal_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR),
+                       r.deposit, NULL))                                    AS j_avg_1y,
+                SUM(r.rent_type = 'M')                                      AS m_cnt,
+                AVG(IF(r.rent_type = 'M', r.deposit, NULL))                 AS m_dep,
+                AVG(IF(r.rent_type = 'M', r.monthly_rent, NULL))            AS m_rent
+           FROM property_rents r
+          WHERE r.apt_id = ?
+          GROUP BY area
+          ORDER BY area`,
+        [aptId],
+    )) as Array<Record<string, any>>;
+
+    const num = (v: unknown) => (v === null || v === undefined ? null : Number(v));
+    const rentStats: RentAreaStat[] = rentRows.map((x) => {
+        const area = Number(x.area);
+        const jAvg = num(x.j_avg_1y);
+        const sale = saleAvg1y.get(area);
+        return {
+            area,
+            jeonseCount: Number(x.j_cnt ?? 0),
+            jeonseMin: num(x.j_min),
+            jeonseMax: num(x.j_max),
+            jeonseAvg1y: jAvg === null ? null : Math.round(jAvg),
+            wolseCount: Number(x.m_cnt ?? 0),
+            wolseDepositAvg: x.m_dep === null ? null : Math.round(Number(x.m_dep)),
+            wolseRentAvg: x.m_rent === null ? null : Math.round(Number(x.m_rent)),
+            jeonseRatio:
+                jAvg !== null && sale !== undefined && sale > 0
+                    ? Math.round((jAvg / sale) * 1000) / 10
+                    : null,
+        };
+    });
+
     return {
         id: r.id,
         aptNm: r.apt_nm,
+        propertyType: (r.property_type ?? 'APT') as PropertyType,
         sido: toShortSido(r.sido_nm),
         sgg: r.sgg_nm,
         umdNm: r.umd_nm,
@@ -428,6 +501,7 @@ export async function aptDetail(aptId: number): Promise<AptDetail | null> {
         thumbnailUrl: r.thumbnail_url ?? null,
         excluAreas: areas,
         areaStats,
+        rentStats,
         seoTitle: r.seo_title ?? null,
         seoDescription: r.seo_description ?? null,
         matchStatus: r.match_status,
@@ -668,6 +742,23 @@ export async function sggBreakdown(sido: string): Promise<
     }));
 }
 
+export type PropertyType = 'APT' | 'OFFI';
+
+/** 화면·제목에 쓰는 이름. DB 에는 코드로 들어간다. */
+export const PROPERTY_LABEL: Record<PropertyType, string> = {
+    APT: '아파트',
+    OFFI: '오피스텔',
+};
+
+/**
+ * 사용자 입력 → 유형 코드. 모르는 값이면 null(=유형 안 가림).
+ * 사용자 입력을 SQL 에 직접 붙이지 않기 위한 화이트리스트다.
+ */
+export function toPropertyType(v: unknown): PropertyType | null {
+    const s = String(v ?? '').trim().toUpperCase();
+    return s === 'APT' || s === 'OFFI' ? s : null;
+}
+
 export type AptSort = 'deals' | 'price_desc' | 'price_asc' | 'name' | 'households' | 'recent';
 
 /** 정렬 키 → ORDER BY. 사용자 입력을 SQL 에 직접 붙이지 않기 위한 화이트리스트. */
@@ -685,6 +776,7 @@ const APT_ORDER: Record<AptSort, string> = {
 export interface AptListRow {
     id: number;
     aptNm: string;
+    propertyType: PropertyType;
     /** WGS84. 지오코딩 전이면 null — 지도에서 그 단지만 빠진다 */
     lat: number | null;
     lng: number | null;
@@ -712,6 +804,7 @@ export async function listApts(opts: {
     sggCd?: string;
     sido?: string;
     q?: string;
+    type?: string;
     sort?: AptSort;
     page?: number;
     size?: number;
@@ -737,6 +830,11 @@ export async function listApts(opts: {
         where += ' AND a.apt_nm LIKE ?';
         params.push(`%${opts.q}%`);
     }
+    const listType = toPropertyType(opts.type);
+    if (listType) {
+        where += ' AND a.property_type = ?';
+        params.push(listType);
+    }
 
     const base = `
         FROM apartments a
@@ -751,7 +849,7 @@ export async function listApts(opts: {
     )) as Array<{ cnt: number }>;
 
     const rows = (await query(
-        `SELECT a.id, a.apt_nm, a.umd_nm, a.build_year, s.sido_nm, s.sgg_nm,
+        `SELECT a.id, a.apt_nm, a.property_type, a.umd_nm, a.build_year, s.sido_nm, s.sgg_nm,
                 a.lat, a.lng,
                 k.total_households AS households,
                 COUNT(*)           AS deal_count,
@@ -805,6 +903,7 @@ export async function listApts(opts: {
             return {
                 id: r.id,
                 aptNm: r.apt_nm,
+                propertyType: (r.property_type ?? 'APT') as PropertyType,
                 // DECIMAL 은 mysql2 가 문자열로 주기도 해서 숫자로 맞춘다
                 lat: r.lat === null || r.lat === undefined ? null : Number(r.lat),
                 lng: r.lng === null || r.lng === undefined ? null : Number(r.lng),
@@ -827,12 +926,83 @@ export async function listApts(opts: {
 }
 
 
+export interface RentRow {
+    id: number;
+    dealDate: string | null;
+    /** 'J' 전세 / 'M' 월세 */
+    rentType: 'J' | 'M';
+    deposit: number;
+    monthlyRent: number;
+    excluUseAr: number;
+    floor: number | null;
+    /** 2021년 6월 임대차 신고제 이후 건에만 있다 */
+    contractType: string | null;
+    contractTerm: string | null;
+    preDeposit: number | null;
+    preMonthlyRent: number | null;
+}
+
+/** 단지의 전월세 이력. 면적(area)을 주면 그 면적만. 최신순. */
+export async function listRents(opts: {
+    aptId: number;
+    area?: number;
+    rentType?: string;
+    limit?: number;
+}): Promise<RentRow[]> {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 300);
+    const params: unknown[] = [opts.aptId];
+    let where = 'WHERE r.apt_id = ?';
+
+    if (opts.area !== undefined && Number.isFinite(opts.area)) {
+        // 화면의 면적 칩과 같은 기준(소수 2자리)으로 묶는다
+        where += ' AND ROUND(r.exclu_use_ar, 2) = ?';
+        params.push(Number(opts.area.toFixed(2)));
+    }
+    const rt = String(opts.rentType ?? '').trim().toUpperCase();
+    if (rt === 'J' || rt === 'M') {
+        where += ' AND r.rent_type = ?';
+        params.push(rt);
+    }
+
+    const rows = (await query(
+        `SELECT r.id, r.deal_date, r.rent_type, r.deposit, r.monthly_rent,
+                r.exclu_use_ar, r.floor, r.contract_type, r.contract_term,
+                r.pre_deposit, r.pre_monthly_rent
+           FROM property_rents r
+           ${where}
+          ORDER BY r.deal_date DESC, r.id DESC
+          LIMIT ${limit}`,
+        params,
+    )) as Array<Record<string, any>>;
+
+    return rows.map((r) => ({
+        id: r.id,
+        dealDate: toDateString(r.deal_date),
+        rentType: r.rent_type === 'M' ? 'M' : 'J',
+        deposit: Number(r.deposit),
+        monthlyRent: Number(r.monthly_rent),
+        excluUseAr: Number(r.exclu_use_ar),
+        floor: r.floor ?? null,
+        contractType: r.contract_type ?? null,
+        contractTerm: r.contract_term ?? null,
+        preDeposit: r.pre_deposit === null || r.pre_deposit === undefined ? null : Number(r.pre_deposit),
+        preMonthlyRent:
+            r.pre_monthly_rent === null || r.pre_monthly_rent === undefined
+                ? null
+                : Number(r.pre_monthly_rent),
+    }));
+}
+
 export interface SiteSummary {
     totalDeals: number;
     totalApts: number;
     totalSgg: number;
     firstMonth: string | null;  // 'YYYYMM'
     lastMonth: string | null;
+    /** 유형별 단지 수 (APT / OFFI) */
+    aptsByType: Record<string, number>;
+    /** 전월세 건수 (전세 + 월세) */
+    totalRents: number;
 }
 
 /** 사이트 전체 수집 현황 — 메인에서 '이 사이트가 뭘 갖고 있는지' 보여주는 값. */
@@ -859,12 +1029,25 @@ export async function siteSummary(): Promise<SiteSummary> {
         return d ? d.slice(0, 4) + d.slice(5, 7) : null;
     };
 
+    // 유형별 단지 수 / 전월세 건수. 둘 다 작은 조회라 위 집계와 같이 돌려도 싸다.
+    const typeRows = (await query(
+        `SELECT property_type, COUNT(*) AS n FROM apartments GROUP BY property_type`,
+    )) as Array<{ property_type: string; n: number }>;
+    const aptsByType: Record<string, number> = {};
+    for (const t of typeRows) aptsByType[t.property_type] = Number(t.n);
+
+    const rentRows = (await query(
+        `SELECT COUNT(*) AS n FROM property_rents`,
+    )) as Array<{ n: number }>;
+
     return {
         totalDeals: Number(r?.deals ?? 0),
         totalApts: Number(r?.apts ?? 0),
         totalSgg: Number(r?.sgg ?? 0),
         firstMonth: ym(r?.first_date ?? null),
         lastMonth: ym(r?.last_date ?? null),
+        aptsByType,
+        totalRents: Number(rentRows[0]?.n ?? 0),
     };
 }
 

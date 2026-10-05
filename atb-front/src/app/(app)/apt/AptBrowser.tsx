@@ -10,7 +10,7 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import type { AptSort, SggBreakdownItem } from '../../../service/main/type';
-import { SIDO_LIST, SORT_LABELS } from '../../../lib/apt-sort';
+import { PROPERTY_TABS, SIDO_LIST, SORT_LABELS } from '../../../lib/apt-sort';
 
 function useNavigate() {
   const router = useRouter();
@@ -48,6 +48,30 @@ export function SidoTabs({ selected }: { selected: string }) {
             }`}
           >
             {s}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** 주택 유형 — 아파트 / 오피스텔 */
+export function TypeTabs({ selected }: { selected: string }) {
+  const go = useNavigate();
+
+  return (
+    <div className="inline-flex rounded-lg border border-slate-200 bg-white p-0.5">
+      {PROPERTY_TABS.map((t) => {
+        const on = t.value === selected;
+        return (
+          <button
+            key={t.value || 'all'}
+            onClick={() => go({ type: t.value || null })}
+            className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              on ? 'bg-brand-700 text-white' : 'text-slate-600 hover:text-brand-700'
+            }`}
+          >
+            {t.label}
           </button>
         );
       })}

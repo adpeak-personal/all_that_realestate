@@ -13,7 +13,9 @@ import {
     presaleSitemapEntries,
     sggBreakdown,
     listApts,
+    listRents,
     siteSummary,
+    toPropertyType,
     listPresales,
     presaleDetail,
     presaleSummary,
@@ -168,6 +170,38 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
         }
     });
 
+    /**
+     * 단지의 전월세 이력 — GET /api/rents?aptId=10371&area=84.93&rentType=J
+     * rentType: J(전세) / M(월세). 생략하면 둘 다.
+     */
+    fastify.get('/rents', async (request, reply) => {
+        const { aptId, area, rentType, limit } = request.query as {
+            aptId?: string;
+            area?: string;
+            rentType?: string;
+            limit?: string;
+        };
+        const id = Number(aptId);
+        if (!Number.isFinite(id) || id <= 0) {
+            reply.status(400);
+            return { error: 'aptId(단지 번호)는 필수입니다.' };
+        }
+        try {
+            const areaNum = area !== undefined && area !== '' ? Number(area) : undefined;
+            const items = await listRents({
+                aptId: id,
+                area: Number.isFinite(areaNum as number) ? areaNum : undefined,
+                rentType,
+                limit: limit ? Number(limit) : undefined,
+            });
+            return { items, total: items.length };
+        } catch (err) {
+            fastify.log.error(err);
+            reply.status(500);
+            return { error: '전월세 이력 조회 실패' };
+        }
+    });
+
     /** 사이트 전체 수집 현황 — GET /api/stats/summary */
     fastify.get('/stats/summary', async (request, reply) => {
         try {
@@ -203,10 +237,11 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
      * sggCd 또는 sido 로 범위를 잡는다. 둘 다 없으면 전국.
      */
     fastify.get('/apts', async (request, reply) => {
-        const { sggCd, sido, q, sort, page, size } = request.query as {
+        const { sggCd, sido, q, type, sort, page, size } = request.query as {
             sggCd?: string;
             sido?: string;
             q?: string;
+            type?: string;
             sort?: string;
             page?: string;
             size?: string;
@@ -216,12 +251,15 @@ export default async function routes(fastify: FastifyInstance, opts: FastifyPlug
             // 검색어가 있는 요청은 사람이 친 것이라 매번 새로 조회한다.
             // 지역·페이지 조합은 크롤러가 수백 개를 훑으므로 들고 있는다. 거래가
             // 하루 한 번 쌓이니 2분마다 다시 구할 이유가 없다 (전국은 9초가 든다).
-            const key = `apts:${sggCd ?? ''}:${sido ?? ''}:${sort ?? ''}:${page ?? 1}:${size ?? ''}`;
+            const key =
+                `apts:${sggCd ?? ''}:${sido ?? ''}:${toPropertyType(type) ?? ''}` +
+                `:${sort ?? ''}:${page ?? 1}:${size ?? ''}`;
             const run = () =>
                 listApts({
                     sggCd,
                     sido,
                     q,
+                    type,
                     sort: sort as AptSort | undefined,
                     page: page ? Number(page) : undefined,
                     size: size ? Number(size) : undefined,

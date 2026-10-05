@@ -28,7 +28,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   // 설명에는 이 페이지에 실제로 있는 것만 적는다. 없는 기능(매물·전월세 등)을 적으면
   // 검색으로 들어온 사람이 곧바로 나가고, 그 이탈이 순위에도 불리하게 돌아온다.
+  // 유형은 제목에 넣는다 — '강남 오피스텔 시세' 처럼 유형을 붙여 찾는 사람이 많다.
+  const typeWord = apt.propertyType === 'OFFI' ? '오피스텔' : '';
+
   const has: string[] = ['시세 추이', '면적별 시세'];
+  // 설명에 적는 건 화면에 실제로 있는 것만. 전월세는 면적별 시세 줄에 전세가율로 보인다.
+  if (apt.rentStats.some((r) => r.jeonseCount > 0 || r.wolseCount > 0)) has.push('전월세');
   if (apt.kapt?.subwayStation) has.push('지하철');
   if (apt.kapt?.educationFacility) has.push('학군');
   if (apt.kapt?.convenientFacility || apt.kapt?.welfareFacility) has.push('편의시설');
@@ -41,7 +46,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const recent = latestLine(deals);
 
   // 어드민에서 직접 쓴 값이 있으면 그것이 우선이다(검색 결과 문구를 손으로 다듬는 용도).
-  const autoTitle = `${apt.aptNm} 실거래가·시세·주변정보 | ${where}`;
+  const autoTitle =
+    `${apt.aptNm}${typeWord ? ` ${typeWord}` : ''} 실거래가·시세·주변정보 | ${where}`;
   const autoDesc =
     `${where} ${apt.aptNm}의 국토교통부 실거래가, ${has.join(', ')} 정보. ` +
     (recent ? `${recent}. ` : '') +
@@ -52,7 +58,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     description: apt.seoDescription ?? autoDesc,
     alternates: { canonical: `/apt/${apt.id}` },
     openGraph: {
-      title: `${apt.aptNm} 실거래가`,
+      title: `${apt.aptNm}${typeWord ? ` ${typeWord}` : ''} 실거래가`,
       description: [where, ...facts, recent].filter(Boolean).join(' · '),
       type: 'website',
     },

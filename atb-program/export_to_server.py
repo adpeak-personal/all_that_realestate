@@ -25,9 +25,10 @@ OUT = Path(__file__).resolve().parent.parent / 'deploy' / 'dump'
 
 # 수집이 채우는 칸만. 여기 없는 칸은 서버 값을 건드리지 않는다.
 APT_COLS = [
-    # 아래 다섯은 수집으로 만들어지는 식별 정보다. 갱신에는 쓰이지 않지만
+    # 아래 여섯은 수집으로 만들어지는 식별 정보다. 갱신에는 쓰이지 않지만
     # 서버에 없는 단지가 있을 때 새로 넣으려면 있어야 한다(NOT NULL).
-    'sgg_cd', 'umd_nm', 'jibun', 'apt_nm', 'build_year',
+    # property_type 은 유니크 키에도 들어가므로 빠지면 오피스텔이 아파트로 들어간다.
+    'property_type', 'sgg_cd', 'umd_nm', 'jibun', 'apt_nm', 'build_year',
     'kapt_code', 'match_status', 'match_method', 'matched_at',
     'total_households', 'total_floors', 'address_road', 'address_jibun',
     'lat', 'lng', 'geocode_status', 'geocoded_at', 'exclu_areas',
